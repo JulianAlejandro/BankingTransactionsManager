@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(QT_Proy
+project(GestionTransaccionesBancarias
     VERSION 0.1.0
-    DESCRIPTION "Aplicacion de escritorio con Qt Widgets"
+    DESCRIPTION "Gestion de transacciones bancarias"
     LANGUAGES CXX
 )
 
@@ -18,7 +18,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 qt_standard_project_setup()
 
-qt_add_executable(QT_Proy
+qt_add_executable(GestionTransaccionesBancarias
     src/main.cpp
     src/mainwindow.cpp
     src/mainwindow.h
@@ -26,11 +26,15 @@ qt_add_executable(QT_Proy
     resources/resources.qrc
 )
 
-target_include_directories(QT_Proy PRIVATE include)
+target_include_directories(GestionTransaccionesBancarias PRIVATE include)
 
-target_link_libraries(QT_Proy PRIVATE Qt6::Widgets)
+target_compile_definitions(GestionTransaccionesBancarias PRIVATE
+    APP_VERSION="${PROJECT_VERSION}"
+)
 
-set_target_properties(QT_Proy PROPERTIES
+target_link_libraries(GestionTransaccionesBancarias PRIVATE Qt6::Widgets)
+
+set_target_properties(GestionTransaccionesBancarias PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
 )
