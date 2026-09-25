@@ -2,15 +2,16 @@
 
 Este documento describe el proyecto y sus convenciones. Es la fuente de verdad para
 humanos y agentes que trabajen en el repositorio. **Debe mantenerse actualizado**: al
-añadir una característica o cambiar una decision de diseno, se refleja aqui.
+anadir una caracteristica o cambiar una decision de diseno, se refleja aqui.
 
 ## Proyecto
 
 - **Nombre**: GestionTransaccionesBancarias
 - **Version**: 0.1.0
 - **Organizacion**: Julale
-- **Descripcion**: Aplicacion de escritorio para registrar y gestionar transacciones
-  bancarias personales (ingresos y gastos) clasificadas en un arbol de categorias.
+- **Descripcion**: Aplicacion de escritorio para registrar movimientos bancarios
+  personales y desglosarlos en transacciones derivadas clasificadas en un arbol de
+  categorias.
 
 ## Stack
 
@@ -52,60 +53,79 @@ Separacion en capas; la logica no vive en la UI.
 ```
 include/  y  src/
   appinfo.h            Metadatos de la aplicacion (nombre, version, organizacion)
-  model/               Entidades puras + modelo de tabla
-    transaction.*        Entidad Transaction (importe en centimos)
+  model/               Entidades puras + modelos de tabla
+    transaction.*        Movimiento bancario (padre); importe firmado
+    derivedtransaction.* Transaccion derivada; importe firmado segun categoria
     category.*           Entidad Category + CategoryType
-    transactiontablemodel.*  QAbstractTableModel para la vista
-  data/                Persistencia
-    database.*           Apertura SQLite, esquema y seed
+    transactiontablemodel.*  Modelo de la tabla principal
+    derivedtablemodel.*      Modelo de la tabla del desglose
+  data/                Persistencia y logica de agregado
+    database.*           Apertura SQLite, esquema versionado y seed
     categoryrepository.* Repositorio del arbol de categorias
-    transactionrepository.* Repositorio de transacciones
+    transactionrepository.*  CRUD del movimiento bancario
+    derivedtransactionrepository.* CRUD de las derivadas
+    transactionservice.*  Coordina "transaccion + derivadas" de forma atomica
   ui/                  Interfaz
-    mainwindow.*         Ventana principal (tabla + toolbar)
-    transactiondialog.*  Dialogo modal de alta/edicion
+    mainwindow.*              Ventana principal (tabla + toolbar)
+    transactioneditordialog.* Editor unificado (movimiento + desglose)
+    derivedrowdialog.*        Alta/edicion de una derivada
 tests/                 Tests con Qt Test
 ```
 
-- `gestion_core` es una libreria estatica con `model/`, `data/` y `transactiontablemodel`.
+- `gestion_core` es una libreria estatica con `model/`, `data/` y los modelos de tabla.
   La enlazan tanto la aplicacion como los tests.
 - La aplicacion enlaza `gestion_core` + `Qt6::Widgets`.
+- La UI solo habla con `TransactionService` y `CategoryRepository`; nunca escribe SQL.
 
 ## Convenciones
 
 - **C++17**, sin extensiones (`CMAKE_CXX_EXTENSIONS OFF`).
 - **Idioma del codigo**: identificadores en ingles; comentarios y textos de UI en espanol.
-- **Importes**: se almacenan como `qint64` en **centimos** (nunca `double` en persistencia).
-  El formateo a moneda se hace con `QLocale(QLocale::Spanish, QLocale::Spain)` (EUR).
+- **Importes**: se almacenan como `qint64` en **centimos con signo** (ingreso `> 0`,
+  gasto `< 0`); nunca `double` en persistencia. El formateo se hace con
+  `QLocale(QLocale::Spanish, QLocale::Spain)` (EUR).
+- **Signo de una derivada**: lo determina su categoria (`signedAmountFor`).
 - **Fechas**: se guardan como texto ISO (`Qt::ISODate`) en SQLite.
-- **Errores**: los repositorios devuelven `bool` y escriben el mensaje en `QString *error`.
+- **Errores**: repositorios y servicio devuelven `bool` y escriben el mensaje en `QString *error`.
 - **Commits**: convencion `tipo(ambito): descripcion` (p. ej. `feat(data): ...`).
   Un commit por fase/capa.
 - No anadir dependencias nuevas sin acordarlo.
 
 ## Especificacion funcional
 
-### Transacciones
+### Movimiento bancario (transaccion padre)
 
-- Tipos: **ingreso** y **gasto**. El tipo **no** se guarda en la transaccion: se deduce
-  de la categoria asociada.
-- Campos: `fecha`, `concepto`, `category_id`, `importe` (centimos), `cuenta`, `notas`.
-- Se crean y editan mediante un dialogo modal; la tabla es de solo lectura.
-- Validacion: fecha valida, concepto no vacio, categoria seleccionada, importe > 0.
+- Es una copia de la operacion tal como la da el banco.
+- Campos: `fecha`, `concepto`, `importe` (firmado), `cuenta`, `notas`. **No tiene categoria**:
+  la clasificacion vive en sus derivadas.
+- Validacion: fecha valida, concepto no vacio, importe distinto de cero.
+
+### Transacciones derivadas
+
+- Toda transaccion tiene **al menos una** derivada; al crear una transaccion se crea una
+  derivada por defecto que hereda concepto, notas e importe del padre.
+- Campos: `transaction_id`, `category_id` (obligatoria), `concepto` (si vacio hereda el del
+  padre), `importe` (firmado segun la categoria), `notas`.
+- **Coherencia estricta**: `sum(importe de las derivadas) == importe del padre`. El editor
+  solo permite guardar cuando cuadra.
+- Se editan junto al padre en un **editor unico** (movimiento arriba, desglose abajo).
+- No se puede eliminar la ultima derivada de una transaccion.
+- Al borrar el padre se borran sus derivadas (`ON DELETE CASCADE`).
 
 ### Categorias
 
-- Estructura de **arbol jerarquico** almacenada en SQL como **lista de adyacencia**
+- Estructura de **arbol jerarquico** almacenada como **lista de adyacencia**
   (`categories.parent_id`; `NULL` para raices). Profundidad ilimitada.
 - Dos raices: **Gasto** e **Ingreso**. Cada categoria guarda su `type` (`ingreso`/`gasto`)
   denormalizado; los hijos heredan el tipo de su raiz.
-- Las transacciones pueden asignarse a **cualquier nodo** (hoja o intermedio).
+- Las derivadas pueden asignarse a **cualquier nodo** (hoja o intermedio).
 - Consultas recursivas (`WITH RECURSIVE`) calculan subarboles y la ruta
   (`Gasto > Comida > Restaurantes`).
 - Integridad: `ON DELETE RESTRICT`; no se puede borrar una categoria con hijos ni usada
-  por transacciones. No se permite mover una categoria dentro de su propio subarbol ni
-  entre ramas de distinto tipo.
+  por derivadas. No se permite mover una categoria dentro de su propio subarbol ni entre
+  ramas de distinto tipo.
 
-### Esquema SQLite
+### Esquema SQLite (version 2)
 
 ```sql
 CREATE TABLE categories (
@@ -120,22 +140,36 @@ CREATE TABLE transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fecha TEXT NOT NULL,
     concepto TEXT NOT NULL,
-    category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
-    importe INTEGER NOT NULL,
+    importe INTEGER NOT NULL,          -- centimos con signo
     cuenta TEXT,
+    notas TEXT,
+    creado_en TEXT NOT NULL
+);
+
+CREATE TABLE derived_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+    concepto TEXT,
+    importe INTEGER NOT NULL,          -- centimos, signo segun la categoria
     notas TEXT,
     creado_en TEXT NOT NULL
 );
 ```
 
-La base de datos vive en `QStandardPaths::AppDataLocation` (`transacciones.db`).
+- `PRAGMA user_version = 2`. Si al abrir la version almacenada es inferior, se **recrean**
+  las tablas (reset de desarrollo, aun sin datos reales). Cuando haya datos habra que
+  sustituirlo por migraciones reales.
+- La base de datos vive en `QStandardPaths::AppDataLocation` (`transacciones.db`).
 
 ## Roadmap
 
 Pendiente (fuera del MVP actual):
 
 - Gestor de categorias en la UI (crear, renombrar, mover, borrar).
-- Resumen y graficas (totales ingresos/gastos/saldo, por categoria) con Qt Charts.
+- Informes: totales por **nodo** de categoria y por **rama** (subarbol, con `WITH RECURSIVE`),
+  basados en las transacciones derivadas.
+- Resumen y graficas (ingresos/gastos/saldo) con Qt Charts.
 - Filtros y busqueda en la tabla (por fecha, categoria, texto).
 - Internacionalizacion (`.ts`) e icono de aplicacion.
 - Empaquetado/deploy con `windeployqt`.
