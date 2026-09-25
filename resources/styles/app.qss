@@ -1,0 +1,12 @@
+QMainWindow {
+    background-color: #f5f5f5;
+}
+
+QLabel {
+    font-size: 18px;
+    color: #333333;
+}
+
+QStatusBar {
+    background-color: #e0e0e0;
+}
