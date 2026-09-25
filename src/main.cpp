@@ -1,9 +1,13 @@
 #include <QApplication>
 #include <QFile>
+#include <QMessageBox>
 #include <QString>
 
 #include "appinfo.h"
-#include "mainwindow.h"
+#include "data/categoryrepository.h"
+#include "data/database.h"
+#include "data/transactionrepository.h"
+#include "ui/mainwindow.h"
 
 int main(int argc, char *argv[])
 {
@@ -17,7 +21,18 @@ int main(int argc, char *argv[])
         app.setStyleSheet(QString::fromUtf8(styleFile.readAll()));
     }
 
-    MainWindow window;
+    Database database;
+    QString error;
+    if (!database.openDefault(&error)) {
+        QMessageBox::critical(nullptr, AppInfo::DisplayName,
+                              QObject::tr("No se pudo abrir la base de datos:\n%1").arg(error));
+        return 1;
+    }
+
+    TransactionRepository transactionRepository(database.connection());
+    CategoryRepository categoryRepository(database.connection());
+
+    MainWindow window(&transactionRepository, &categoryRepository);
     window.show();
 
     return app.exec();
