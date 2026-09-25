@@ -8,3 +8,4 @@ endfunction()
 
 gestion_add_test(test_categoryrepository)
 gestion_add_test(test_transactionrepository)
+gestion_add_test(test_transactionservice)

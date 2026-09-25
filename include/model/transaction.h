@@ -9,8 +9,7 @@ struct Transaction
     int id = -1;
     QDate date;
     QString concept;
-    int categoryId = -1;
-    qint64 amountCents = 0;
+    qint64 amountCents = 0;   // firmado: ingreso > 0, gasto < 0
     QString account;
     QString notes;
 

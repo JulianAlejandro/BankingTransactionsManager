@@ -11,12 +11,10 @@ QLocale esLocale()
     return QLocale(QLocale::Spanish, QLocale::Spain);
 }
 
-QString formattedAmount(const Transaction &transaction, const Category &category)
+QString formattedAmount(qint64 cents)
 {
-    const double value = static_cast<double>(transaction.amountCents) / 100.0;
-    const QString text = esLocale().toCurrencyString(value, QStringLiteral("\u20ac"));
-    return category.type == CategoryType::Income ? QStringLiteral("+") + text
-                                                : QStringLiteral("-") + text;
+    return esLocale().toCurrencyString(static_cast<double>(cents) / 100.0,
+                                       QStringLiteral("\u20ac"));
 }
 
 } // namespace
@@ -26,11 +24,14 @@ TransactionTableModel::TransactionTableModel(QObject *parent)
 {
 }
 
-void TransactionTableModel::setTransactions(const QList<Transaction> &transactions,
-                                            const QList<Category> &categories)
+void TransactionTableModel::setTransactions(
+    const QList<Transaction> &transactions,
+    const QHash<int, QList<DerivedTransaction>> &derived,
+    const QList<Category> &categories)
 {
     beginResetModel();
     m_transactions = transactions;
+    m_derived = derived;
     m_categories.clear();
     for (const Category &category : categories) {
         m_categories.insert(category.id, category);
@@ -47,6 +48,19 @@ bool TransactionTableModel::transactionAt(int row, Transaction *out) const
         *out = m_transactions.at(row);
     }
     return true;
+}
+
+QString TransactionTableModel::classificationFor(const Transaction &transaction) const
+{
+    const QList<DerivedTransaction> list = m_derived.value(transaction.id);
+    if (list.isEmpty()) {
+        return tr("Sin clasificar");
+    }
+    if (list.size() == 1) {
+        const Category category = m_categories.value(list.first().categoryId);
+        return category.path.isEmpty() ? category.name : category.path;
+    }
+    return tr("Desglosado (%1)").arg(list.size());
 }
 
 int TransactionTableModel::rowCount(const QModelIndex &parent) const
@@ -66,7 +80,6 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
     }
 
     const Transaction &transaction = m_transactions.at(index.row());
-    const Category category = m_categories.value(transaction.categoryId);
 
     switch (role) {
     case Qt::DisplayRole:
@@ -75,12 +88,12 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
             return esLocale().toString(transaction.date, QLocale::ShortFormat);
         case ConceptColumn:
             return transaction.concept;
-        case CategoryColumn:
-            return category.path.isEmpty() ? category.name : category.path;
         case AmountColumn:
-            return formattedAmount(transaction, category);
+            return formattedAmount(transaction.amountCents);
         case AccountColumn:
             return transaction.account;
+        case ClassificationColumn:
+            return classificationFor(transaction);
         default:
             break;
         }
@@ -92,9 +105,8 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         break;
     case Qt::ForegroundRole:
         if (index.column() == AmountColumn) {
-            return category.type == CategoryType::Income
-                ? QBrush(QColor(0x1b, 0x7f, 0x3b))
-                : QBrush(QColor(0xb3, 0x26, 0x1e));
+            return transaction.amountCents >= 0 ? QBrush(QColor(0x1b, 0x7f, 0x3b))
+                                                : QBrush(QColor(0xb3, 0x26, 0x1e));
         }
         break;
     case Qt::UserRole:
@@ -118,12 +130,12 @@ QVariant TransactionTableModel::headerData(int section, Qt::Orientation orientat
         return tr("Fecha");
     case ConceptColumn:
         return tr("Concepto");
-    case CategoryColumn:
-        return tr("Categoria");
     case AmountColumn:
         return tr("Importe");
     case AccountColumn:
         return tr("Cuenta");
+    case ClassificationColumn:
+        return tr("Clasificacion");
     default:
         break;
     }

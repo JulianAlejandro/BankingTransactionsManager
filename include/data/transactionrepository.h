@@ -15,6 +15,7 @@ public:
     bool add(Transaction &transaction, QString *error = nullptr);
     bool update(const Transaction &transaction, QString *error = nullptr);
     bool remove(int id, QString *error = nullptr);
+    Transaction findById(int id, bool *ok = nullptr) const;
     QList<Transaction> all(QString *error = nullptr) const;
 
 private:

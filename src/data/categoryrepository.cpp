@@ -247,7 +247,7 @@ bool CategoryRepository::hasChildren(int id) const
 bool CategoryRepository::isUsedByTransactions(int id) const
 {
     QSqlQuery query(m_db);
-    query.prepare(QStringLiteral("SELECT COUNT(*) FROM transactions WHERE category_id = ?"));
+    query.prepare(QStringLiteral("SELECT COUNT(*) FROM derived_transactions WHERE category_id = ?"));
     query.addBindValue(id);
     return query.exec() && query.next() && query.value(0).toInt() > 0;
 }

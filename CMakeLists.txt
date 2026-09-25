@@ -21,16 +21,24 @@ qt_standard_project_setup()
 qt_add_library(gestion_core STATIC
     include/model/category.h
     include/model/transaction.h
+    include/model/derivedtransaction.h
     include/model/transactiontablemodel.h
+    include/model/derivedtablemodel.h
     include/data/database.h
     include/data/categoryrepository.h
     include/data/transactionrepository.h
+    include/data/derivedtransactionrepository.h
+    include/data/transactionservice.h
     src/model/category.cpp
     src/model/transaction.cpp
+    src/model/derivedtransaction.cpp
     src/model/transactiontablemodel.cpp
+    src/model/derivedtablemodel.cpp
     src/data/database.cpp
     src/data/categoryrepository.cpp
     src/data/transactionrepository.cpp
+    src/data/derivedtransactionrepository.cpp
+    src/data/transactionservice.cpp
 )
 
 target_include_directories(gestion_core PUBLIC include)
@@ -41,9 +49,12 @@ qt_add_executable(GestionTransaccionesBancarias
     src/ui/mainwindow.cpp
     src/ui/mainwindow.h
     src/ui/mainwindow.ui
-    src/ui/transactiondialog.cpp
-    src/ui/transactiondialog.h
-    src/ui/transactiondialog.ui
+    src/ui/transactioneditordialog.cpp
+    src/ui/transactioneditordialog.h
+    src/ui/transactioneditordialog.ui
+    src/ui/derivedrowdialog.cpp
+    src/ui/derivedrowdialog.h
+    src/ui/derivedrowdialog.ui
     resources/resources.qrc
 )
 

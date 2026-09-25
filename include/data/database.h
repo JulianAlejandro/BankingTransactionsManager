@@ -23,8 +23,11 @@ public:
     static QString defaultPath();
 
 private:
+    int schemaVersion() const;
+    bool resetSchema(QString *error);
     bool createSchema(QString *error);
     bool seedCategories(QString *error);
+    bool setSchemaVersion(int version, QString *error);
 
     QString m_connectionName;
 };

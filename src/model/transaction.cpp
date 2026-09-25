@@ -10,12 +10,8 @@ bool Transaction::isValid(QString *error) const
         if (error) *error = QStringLiteral("El concepto no puede estar vacio.");
         return false;
     }
-    if (categoryId < 0) {
-        if (error) *error = QStringLiteral("Debes seleccionar una categoria.");
-        return false;
-    }
-    if (amountCents <= 0) {
-        if (error) *error = QStringLiteral("El importe debe ser mayor que cero.");
+    if (amountCents == 0) {
+        if (error) *error = QStringLiteral("El importe debe ser distinto de cero.");
         return false;
     }
     return true;

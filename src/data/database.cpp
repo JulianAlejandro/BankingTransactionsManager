@@ -9,6 +9,10 @@
 #include <QUuid>
 #include <QVariant>
 
+namespace {
+constexpr int kSchemaVersion = 2;
+}
+
 Database::Database() = default;
 
 Database::~Database()
@@ -54,7 +58,16 @@ bool Database::open(const QString &path, QString *error)
         pragma.exec(QStringLiteral("PRAGMA foreign_keys = ON"));
     }
 
-    if (!createSchema(error) || !seedCategories(error)) {
+    // Reset de desarrollo: si el esquema no esta en la version actual se recrea.
+    if (schemaVersion() < kSchemaVersion) {
+        if (!resetSchema(error)) {
+            close();
+            return false;
+        }
+    }
+
+    if (!createSchema(error) || !seedCategories(error)
+        || !setSchemaVersion(kSchemaVersion, error)) {
         close();
         return false;
     }
@@ -96,6 +109,43 @@ QSqlDatabase Database::connection() const
     return QSqlDatabase::database(m_connectionName, false);
 }
 
+int Database::schemaVersion() const
+{
+    QSqlQuery query(connection());
+    if (query.exec(QStringLiteral("PRAGMA user_version")) && query.next()) {
+        return query.value(0).toInt();
+    }
+    return 0;
+}
+
+bool Database::setSchemaVersion(int version, QString *error)
+{
+    QSqlQuery query(connection());
+    if (!query.exec(QStringLiteral("PRAGMA user_version = %1").arg(version))) {
+        if (error) *error = query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+bool Database::resetSchema(QString *error)
+{
+    const QStringList drops = {
+        QStringLiteral("DROP TABLE IF EXISTS derived_transactions"),
+        QStringLiteral("DROP TABLE IF EXISTS transactions"),
+        QStringLiteral("DROP TABLE IF EXISTS categories"),
+    };
+
+    for (const QString &sql : drops) {
+        QSqlQuery query(connection());
+        if (!query.exec(sql)) {
+            if (error) *error = query.lastError().text();
+            return false;
+        }
+    }
+    return true;
+}
+
 bool Database::createSchema(QString *error)
 {
     const QSqlDatabase db = connection();
@@ -112,15 +162,27 @@ bool Database::createSchema(QString *error)
             " id INTEGER PRIMARY KEY AUTOINCREMENT,"
             " fecha TEXT NOT NULL,"
             " concepto TEXT NOT NULL,"
-            " category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,"
             " importe INTEGER NOT NULL,"
             " cuenta TEXT,"
             " notas TEXT,"
             " creado_en TEXT NOT NULL)"),
         QStringLiteral(
-            "CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id)"),
+            "CREATE TABLE IF NOT EXISTS derived_transactions ("
+            " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            " transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,"
+            " category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,"
+            " concepto TEXT,"
+            " importe INTEGER NOT NULL,"
+            " notas TEXT,"
+            " creado_en TEXT NOT NULL)"),
         QStringLiteral(
             "CREATE INDEX IF NOT EXISTS idx_transactions_fecha ON transactions(fecha)"),
+        QStringLiteral(
+            "CREATE INDEX IF NOT EXISTS idx_derived_transaction"
+            " ON derived_transactions(transaction_id)"),
+        QStringLiteral(
+            "CREATE INDEX IF NOT EXISTS idx_derived_category"
+            " ON derived_transactions(category_id)"),
     };
 
     for (const QString &sql : statements) {

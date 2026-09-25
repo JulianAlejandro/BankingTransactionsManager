@@ -14,10 +14,9 @@ Transaction readTransaction(const QSqlQuery &query)
     transaction.id = query.value(0).toInt();
     transaction.date = QDate::fromString(query.value(1).toString(), Qt::ISODate);
     transaction.concept = query.value(2).toString();
-    transaction.categoryId = query.value(3).toInt();
-    transaction.amountCents = query.value(4).toLongLong();
-    transaction.account = query.value(5).toString();
-    transaction.notes = query.value(6).toString();
+    transaction.amountCents = query.value(3).toLongLong();
+    transaction.account = query.value(4).toString();
+    transaction.notes = query.value(5).toString();
     return transaction;
 }
 
@@ -41,11 +40,10 @@ bool TransactionRepository::add(Transaction &transaction, QString *error)
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "INSERT INTO transactions (fecha, concepto, category_id, importe, cuenta, notas, creado_en)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?)"));
+        "INSERT INTO transactions (fecha, concepto, importe, cuenta, notas, creado_en)"
+        " VALUES (?, ?, ?, ?, ?, ?)"));
     query.addBindValue(transaction.date.toString(Qt::ISODate));
     query.addBindValue(transaction.concept.trimmed());
-    query.addBindValue(transaction.categoryId);
     query.addBindValue(transaction.amountCents);
     query.addBindValue(optionalText(transaction.account));
     query.addBindValue(optionalText(transaction.notes));
@@ -67,11 +65,10 @@ bool TransactionRepository::update(const Transaction &transaction, QString *erro
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "UPDATE transactions SET fecha = ?, concepto = ?, category_id = ?, importe = ?,"
+        "UPDATE transactions SET fecha = ?, concepto = ?, importe = ?,"
         " cuenta = ?, notas = ? WHERE id = ?"));
     query.addBindValue(transaction.date.toString(Qt::ISODate));
     query.addBindValue(transaction.concept.trimmed());
-    query.addBindValue(transaction.categoryId);
     query.addBindValue(transaction.amountCents);
     query.addBindValue(optionalText(transaction.account));
     query.addBindValue(optionalText(transaction.notes));
@@ -104,12 +101,26 @@ bool TransactionRepository::remove(int id, QString *error)
     return true;
 }
 
+Transaction TransactionRepository::findById(int id, bool *ok) const
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "SELECT id, fecha, concepto, importe, cuenta, notas FROM transactions WHERE id = ?"));
+    query.addBindValue(id);
+    if (query.exec() && query.next()) {
+        if (ok) *ok = true;
+        return readTransaction(query);
+    }
+    if (ok) *ok = false;
+    return Transaction();
+}
+
 QList<Transaction> TransactionRepository::all(QString *error) const
 {
     QList<Transaction> result;
     QSqlQuery query(m_db);
     if (!query.exec(QStringLiteral(
-            "SELECT id, fecha, concepto, category_id, importe, cuenta, notas"
+            "SELECT id, fecha, concepto, importe, cuenta, notas"
             " FROM transactions ORDER BY fecha DESC, id DESC"))) {
         if (error) *error = query.lastError().text();
         return result;
