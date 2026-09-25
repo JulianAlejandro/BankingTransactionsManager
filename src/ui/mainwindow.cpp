@@ -4,12 +4,24 @@
 #include <QAction>
 #include <QHeaderView>
 #include <QItemSelectionModel>
+#include <QLocale>
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QToolBar>
 
 #include "appinfo.h"
 #include "ui/transactioneditordialog.h"
+
+namespace {
+
+QString formatCents(qint64 cents)
+{
+    const QLocale locale(QLocale::Spanish, QLocale::Spain);
+    return locale.toCurrencyString(static_cast<double>(cents) / 100.0,
+                                   QStringLiteral("\u20ac"));
+}
+
+} // namespace
 
 MainWindow::MainWindow(TransactionService *service, CategoryRepository *categoryRepository,
                        QWidget *parent)
@@ -18,6 +30,7 @@ MainWindow::MainWindow(TransactionService *service, CategoryRepository *category
     , m_service(service)
     , m_categoryRepository(categoryRepository)
     , m_model(new TransactionTableModel(this))
+    , m_derivedModel(new DerivedTableModel(this))
 {
     ui->setupUi(this);
     setWindowTitle(AppInfo::DisplayName);
@@ -30,8 +43,17 @@ MainWindow::MainWindow(TransactionService *service, CategoryRepository *category
     ui->tableView->verticalHeader()->setVisible(false);
     ui->tableView->horizontalHeader()->setStretchLastSection(true);
 
+    ui->tableViewDerived->setModel(m_derivedModel);
+    ui->tableViewDerived->setSelectionBehavior(QAbstractItemView::SelectRows);
+    ui->tableViewDerived->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    ui->tableViewDerived->setAlternatingRowColors(true);
+    ui->tableViewDerived->verticalHeader()->setVisible(false);
+    ui->tableViewDerived->horizontalHeader()->setStretchLastSection(true);
+
     connect(ui->tableView, &QTableView::doubleClicked,
             this, &MainWindow::editSelectedTransaction);
+    connect(ui->tableView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &MainWindow::updateDerivedDetail);
 
     setupToolBar();
     reload();
@@ -67,6 +89,8 @@ void MainWindow::setupToolBar()
 
 void MainWindow::reload()
 {
+    const int previousId = selectedTransactionId();
+
     QString error;
     const QList<Category> categories = m_categoryRepository->withPaths(&error);
     if (!error.isEmpty()) {
@@ -85,7 +109,29 @@ void MainWindow::reload()
         QMessageBox::warning(this, AppInfo::DisplayName, error);
     }
 
+    m_derived = derived;
+    m_derivedModel->setCategories(categories);
     m_model->setTransactions(transactions, derived, categories);
+
+    int rowToSelect = -1;
+    if (previousId >= 0) {
+        for (int row = 0; row < transactions.size(); ++row) {
+            if (transactions.at(row).id == previousId) {
+                rowToSelect = row;
+                break;
+            }
+        }
+    }
+    if (rowToSelect < 0 && !transactions.isEmpty()) {
+        rowToSelect = 0;
+    }
+
+    if (rowToSelect >= 0) {
+        ui->tableView->selectRow(rowToSelect);
+    } else {
+        updateDerivedDetail();
+    }
+
     statusBar()->showMessage(tr("%1 transacciones").arg(transactions.size()));
 }
 
@@ -93,6 +139,41 @@ int MainWindow::selectedRow() const
 {
     const QModelIndexList selection = ui->tableView->selectionModel()->selectedRows();
     return selection.isEmpty() ? -1 : selection.first().row();
+}
+
+int MainWindow::selectedTransactionId() const
+{
+    const int row = selectedRow();
+    Transaction transaction;
+    if (row < 0 || !m_model->transactionAt(row, &transaction)) {
+        return -1;
+    }
+    return transaction.id;
+}
+
+void MainWindow::updateDerivedDetail()
+{
+    const int row = selectedRow();
+    Transaction transaction;
+    if (row < 0 || !m_model->transactionAt(row, &transaction)) {
+        m_derivedModel->setRows(QList<DerivedTransaction>());
+        ui->labelDerivedSummary->setText(
+            tr("Selecciona una transaccion para ver su desglose"));
+        return;
+    }
+
+    const QList<DerivedTransaction> derived = m_derived.value(transaction.id);
+    m_derivedModel->setRows(derived);
+
+    qint64 total = 0;
+    for (const DerivedTransaction &item : derived) {
+        total += item.amountCents;
+    }
+
+    ui->labelDerivedSummary->setText(tr("%1  \u00b7  %2 derivada(s)  \u00b7  total %3")
+                                         .arg(transaction.concept)
+                                         .arg(derived.size())
+                                         .arg(formatCents(total)));
 }
 
 void MainWindow::createTransaction()

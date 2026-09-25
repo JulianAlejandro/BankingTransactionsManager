@@ -16,7 +16,29 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <widget class="QTableView" name="tableView"/>
+     <widget class="QSplitter" name="splitter">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <widget class="QTableView" name="tableView"/>
+      <widget class="QGroupBox" name="groupDerived">
+       <property name="title">
+        <string>Transacciones derivadas</string>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayoutDerived">
+        <item>
+         <widget class="QLabel" name="labelDerivedSummary">
+          <property name="text">
+           <string>Selecciona una transaccion para ver su desglose</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTableView" name="tableViewDerived"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
     </item>
    </layout>
   </widget>

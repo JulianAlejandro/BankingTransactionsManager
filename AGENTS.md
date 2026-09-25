@@ -112,6 +112,8 @@ tests/                 Tests con Qt Test
 - El dialogo de una derivada ofrece **"Cargar del padre"**: vuelca concepto, notas e importe
   (magnitud) del movimiento; la categoria la elige el usuario y determina el signo. Si la
   categoria elegida no coincide de signo con el padre, se avisa.
+- La ventana principal muestra un **panel inferior** que, al seleccionar un movimiento,
+  lista sus derivadas (solo lectura) y su total.
 - No se puede eliminar la ultima derivada de una transaccion.
 - Al borrar el padre se borran sus derivadas (`ON DELETE CASCADE`).
 

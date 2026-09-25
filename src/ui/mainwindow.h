@@ -1,10 +1,13 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QHash>
+#include <QList>
 #include <QMainWindow>
 
 #include "data/categoryrepository.h"
 #include "data/transactionservice.h"
+#include "model/derivedtablemodel.h"
 #include "model/transactiontablemodel.h"
 
 QT_BEGIN_NAMESPACE
@@ -25,15 +28,19 @@ private slots:
     void createTransaction();
     void editSelectedTransaction();
     void deleteSelectedTransaction();
+    void updateDerivedDetail();
 
 private:
     void setupToolBar();
     int selectedRow() const;
+    int selectedTransactionId() const;
 
     Ui::MainWindow *ui;
     TransactionService *m_service;
     CategoryRepository *m_categoryRepository;
     TransactionTableModel *m_model;
+    DerivedTableModel *m_derivedModel;
+    QHash<int, QList<DerivedTransaction>> m_derived;
 };
 
 #endif // MAINWINDOW_H
