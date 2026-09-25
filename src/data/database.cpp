@@ -130,20 +130,33 @@ bool Database::setSchemaVersion(int version, QString *error)
 
 bool Database::resetSchema(QString *error)
 {
+    QSqlDatabase db = connection();
+
+    // Con foreign_keys activas, DROP TABLE hace un DELETE implicito y la
+    // autorreferencia de categories (parent_id) provoca FOREIGN KEY constraint failed.
+    QSqlQuery off(db);
+    off.exec(QStringLiteral("PRAGMA foreign_keys = OFF"));
+
     const QStringList drops = {
         QStringLiteral("DROP TABLE IF EXISTS derived_transactions"),
         QStringLiteral("DROP TABLE IF EXISTS transactions"),
         QStringLiteral("DROP TABLE IF EXISTS categories"),
     };
 
+    bool ok = true;
     for (const QString &sql : drops) {
-        QSqlQuery query(connection());
+        QSqlQuery query(db);
         if (!query.exec(sql)) {
             if (error) *error = query.lastError().text();
-            return false;
+            ok = false;
+            break;
         }
     }
-    return true;
+
+    QSqlQuery on(db);
+    on.exec(QStringLiteral("PRAGMA foreign_keys = ON"));
+
+    return ok;
 }
 
 bool Database::createSchema(QString *error)
