@@ -12,6 +12,7 @@ DerivedRowDialog::DerivedRowDialog(const QList<Category> &categories, QWidget *p
 
     connect(ui->comboCategory, qOverload<int>(&QComboBox::currentIndexChanged),
             this, &DerivedRowDialog::updateSignHint);
+    connect(ui->btnLoadParent, &QPushButton::clicked, this, &DerivedRowDialog::loadFromParent);
     connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &DerivedRowDialog::validateAndAccept);
     connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
@@ -68,6 +69,45 @@ void DerivedRowDialog::setSuggestedMagnitudeCents(qint64 cents)
 {
     if (ui->doubleSpinBoxAmount->value() == 0.0 && cents > 0) {
         ui->doubleSpinBoxAmount->setValue(static_cast<double>(cents) / 100.0);
+    }
+}
+
+void DerivedRowDialog::setParentInfo(const QString &concept, qint64 amountCents,
+                                     const QString &notes)
+{
+    m_hasParent = true;
+    m_parentConcept = concept;
+    m_parentAmountCents = amountCents;
+    m_parentNotes = notes;
+    ui->btnLoadParent->setEnabled(true);
+}
+
+void DerivedRowDialog::loadFromParent()
+{
+    if (!m_hasParent) {
+        return;
+    }
+
+    ui->lineEditConcept->setText(m_parentConcept);
+    ui->plainTextEditNotes->setPlainText(m_parentNotes);
+    if (m_parentAmountCents != 0) {
+        ui->doubleSpinBoxAmount->setValue(static_cast<double>(qAbs(m_parentAmountCents)) / 100.0);
+    }
+
+    const int categoryId = ui->comboCategory->currentData().toInt();
+    if (categoryId >= 0) {
+        const bool parentIncome = m_parentAmountCents > 0;
+        const bool categoryIncome =
+            m_typeById.value(categoryId, CategoryType::Expense) == CategoryType::Income;
+        if (parentIncome != categoryIncome) {
+            QMessageBox::warning(
+                this, tr("Signo incompatible"),
+                tr("Has cargado el importe del padre, pero la categoria seleccionada es de %1 "
+                   "y el movimiento bancario es de %2. El importe no cuadrara: elige una "
+                   "categoria del mismo signo o ajusta el importe.")
+                    .arg(categoryIncome ? tr("ingreso") : tr("gasto"),
+                         parentIncome ? tr("ingreso") : tr("gasto")));
+        }
     }
 }
 

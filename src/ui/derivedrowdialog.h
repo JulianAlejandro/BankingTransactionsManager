@@ -22,9 +22,11 @@ public:
 
     void setRow(const DerivedTransaction &row);
     void setSuggestedMagnitudeCents(qint64 cents);
+    void setParentInfo(const QString &concept, qint64 amountCents, const QString &notes);
     DerivedTransaction row() const;
 
 private slots:
+    void loadFromParent();
     void updateSignHint();
     void validateAndAccept();
 
@@ -34,6 +36,11 @@ private:
     Ui::DerivedRowDialog *ui;
     DerivedTransaction m_row;
     QHash<int, CategoryType> m_typeById;
+
+    bool m_hasParent = false;
+    QString m_parentConcept;
+    qint64 m_parentAmountCents = 0;
+    QString m_parentNotes;
 };
 
 #endif // DERIVEDROWDIALOG_H

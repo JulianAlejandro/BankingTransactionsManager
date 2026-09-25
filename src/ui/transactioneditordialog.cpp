@@ -116,6 +116,8 @@ void TransactionEditorDialog::addDerived()
 
     DerivedRowDialog dialog(m_categories, this);
     dialog.setRow(row);
+    dialog.setParentInfo(ui->lineEditConcept->text().trimmed(), amountCents(),
+                         ui->plainTextEditNotes->toPlainText().trimmed());
     const qint64 remaining = amountCents() - m_model->totalCents();
     dialog.setSuggestedMagnitudeCents(qAbs(remaining));
     if (dialog.exec() != QDialog::Accepted) {
@@ -138,6 +140,8 @@ void TransactionEditorDialog::editDerived()
     const DerivedTransaction current = m_model->derivedAt(index);
     DerivedRowDialog dialog(m_categories, this);
     dialog.setRow(current);
+    dialog.setParentInfo(ui->lineEditConcept->text().trimmed(), amountCents(),
+                         ui->plainTextEditNotes->toPlainText().trimmed());
     const qint64 remaining = amountCents() - (m_model->totalCents() - current.amountCents);
     dialog.setSuggestedMagnitudeCents(qAbs(remaining));
     if (dialog.exec() != QDialog::Accepted) {

@@ -86,6 +86,19 @@
     </layout>
    </item>
    <item>
+    <widget class="QPushButton" name="btnLoadParent">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>Cargar del padre</string>
+     </property>
+     <property name="toolTip">
+      <string>Vuelca concepto, notas e importe del movimiento bancario en esta derivada</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
