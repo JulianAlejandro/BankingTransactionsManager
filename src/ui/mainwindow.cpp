@@ -9,14 +9,13 @@
 #include <QToolBar>
 
 #include "appinfo.h"
-#include "ui/transactiondialog.h"
+#include "ui/transactioneditordialog.h"
 
-MainWindow::MainWindow(TransactionRepository *transactionRepository,
-                       CategoryRepository *categoryRepository,
+MainWindow::MainWindow(TransactionService *service, CategoryRepository *categoryRepository,
                        QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , m_transactionRepository(transactionRepository)
+    , m_service(service)
     , m_categoryRepository(categoryRepository)
     , m_model(new TransactionTableModel(this))
 {
@@ -30,6 +29,9 @@ MainWindow::MainWindow(TransactionRepository *transactionRepository,
     ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     ui->tableView->verticalHeader()->setVisible(false);
     ui->tableView->horizontalHeader()->setStretchLastSection(true);
+
+    connect(ui->tableView, &QTableView::doubleClicked,
+            this, &MainWindow::editSelectedTransaction);
 
     setupToolBar();
     reload();
@@ -72,12 +74,18 @@ void MainWindow::reload()
         error.clear();
     }
 
-    const QList<Transaction> transactions = m_transactionRepository->all(&error);
+    const QList<Transaction> transactions = m_service->all(&error);
+    if (!error.isEmpty()) {
+        QMessageBox::warning(this, AppInfo::DisplayName, error);
+        error.clear();
+    }
+
+    const QHash<int, QList<DerivedTransaction>> derived = m_service->allDerived(&error);
     if (!error.isEmpty()) {
         QMessageBox::warning(this, AppInfo::DisplayName, error);
     }
 
-    m_model->setTransactions(transactions, categories);
+    m_model->setTransactions(transactions, derived, categories);
     statusBar()->showMessage(tr("%1 transacciones").arg(transactions.size()));
 }
 
@@ -97,13 +105,14 @@ void MainWindow::createTransaction()
         return;
     }
 
-    TransactionDialog dialog(categories, this);
+    TransactionEditorDialog dialog(categories, this);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
 
     Transaction transaction = dialog.transaction();
-    if (!m_transactionRepository->add(transaction, &error)) {
+    QList<DerivedTransaction> derived = dialog.derivedTransactions();
+    if (!m_service->create(transaction, derived, nullptr, &error)) {
         QMessageBox::critical(this, AppInfo::DisplayName, error);
         return;
     }
@@ -121,16 +130,22 @@ void MainWindow::editSelectedTransaction()
     }
 
     QString error;
-    const QList<Category> categories = m_categoryRepository->withPaths(&error);
+    QList<DerivedTransaction> derived;
+    if (!m_service->load(transaction.id, &transaction, &derived, &error)) {
+        QMessageBox::critical(this, AppInfo::DisplayName, error);
+        return;
+    }
 
-    TransactionDialog dialog(categories, this);
-    dialog.setTransaction(transaction);
+    const QList<Category> categories = m_categoryRepository->withPaths(&error);
+    TransactionEditorDialog dialog(categories, this);
+    dialog.setTransaction(transaction, derived);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
 
     transaction = dialog.transaction();
-    if (!m_transactionRepository->update(transaction, &error)) {
+    derived = dialog.derivedTransactions();
+    if (!m_service->save(transaction, derived, &error)) {
         QMessageBox::critical(this, AppInfo::DisplayName, error);
         return;
     }
@@ -149,13 +164,13 @@ void MainWindow::deleteSelectedTransaction()
 
     const QMessageBox::StandardButton answer = QMessageBox::question(
         this, AppInfo::DisplayName,
-        tr("\u00bfEliminar la transaccion \"%1\"?").arg(transaction.concept));
+        tr("\u00bfEliminar la transaccion \"%1\" y su desglose?").arg(transaction.concept));
     if (answer != QMessageBox::Yes) {
         return;
     }
 
     QString error;
-    if (!m_transactionRepository->remove(transaction.id, &error)) {
+    if (!m_service->remove(transaction.id, &error)) {
         QMessageBox::critical(this, AppInfo::DisplayName, error);
         return;
     }

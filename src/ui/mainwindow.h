@@ -4,7 +4,7 @@
 #include <QMainWindow>
 
 #include "data/categoryrepository.h"
-#include "data/transactionrepository.h"
+#include "data/transactionservice.h"
 #include "model/transactiontablemodel.h"
 
 QT_BEGIN_NAMESPACE
@@ -16,8 +16,7 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(TransactionRepository *transactionRepository,
-               CategoryRepository *categoryRepository,
+    MainWindow(TransactionService *service, CategoryRepository *categoryRepository,
                QWidget *parent = nullptr);
     ~MainWindow() override;
 
@@ -32,7 +31,7 @@ private:
     int selectedRow() const;
 
     Ui::MainWindow *ui;
-    TransactionRepository *m_transactionRepository;
+    TransactionService *m_service;
     CategoryRepository *m_categoryRepository;
     TransactionTableModel *m_model;
 };
