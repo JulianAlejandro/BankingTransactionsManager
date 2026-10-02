@@ -18,6 +18,7 @@ anadir una caracteristica o cambiar una decision de diseno, se refleja aqui.
 - **Lenguaje**: C++17
 - **Framework**: Qt 6 (Qt Widgets)
 - **Modulo de datos**: Qt Sql (SQLite)
+- **Graficas**: Qt Charts (`Qt6::Charts`)
 - **Build system**: CMake + Ninja
 - **Kit**: Desktop Qt 6.11.1 MinGW 64-bit (MinGW 13.1.0)
 - **Control de versiones**: Git (rama `main`)
@@ -59,23 +60,31 @@ include/  y  src/
     category.*           Entidad Category + CategoryType
     transactiontablemodel.*  Modelo de la tabla principal
     derivedtablemodel.*      Modelo de la tabla del desglose
+    reporttablemodel.*       Modelo del desglose de informes
+    timeseriesmodel.*        Modelo de la evolucion temporal
+  report/              Tipos de los informes (DTOs de solo lectura)
+    reporttypes.h        ReportPeriod, Granularity, PeriodTotals, CategoryTotal, TimeBucket
   data/                Persistencia y logica de agregado
     database.*           Apertura SQLite, esquema versionado y seed
     categoryrepository.* Repositorio del arbol de categorias
     transactionrepository.*  CRUD del movimiento bancario
     derivedtransactionrepository.* CRUD de las derivadas
     transactionservice.*  Coordina "transaccion + derivadas" de forma atomica
+    reportrepository.*   Consultas agregadas de solo lectura para informes
   ui/                  Interfaz
     mainwindow.*              Ventana principal (tabla + toolbar)
     transactioneditordialog.* Editor unificado (movimiento + desglose)
     derivedrowdialog.*        Alta/edicion de una derivada
+    reportwindow.*            Ventana de informes (KPIs, desglose, graficas)
+    reportfilterwidget.*      Filtros de informes (periodo, categoria, granularidad)
 tests/                 Tests con Qt Test
 ```
 
 - `gestion_core` es una libreria estatica con `model/`, `data/` y los modelos de tabla.
   La enlazan tanto la aplicacion como los tests.
 - La aplicacion enlaza `gestion_core` + `Qt6::Widgets`.
-- La UI solo habla con `TransactionService` y `CategoryRepository`; nunca escribe SQL.
+- La UI solo habla con `TransactionService`, `CategoryRepository` y `ReportRepository`;
+  nunca escribe SQL.
 
 ## Convenciones
 
@@ -86,6 +95,7 @@ tests/                 Tests con Qt Test
   `QLocale(QLocale::Spanish, QLocale::Spain)` (EUR).
 - **Signo de una derivada**: lo determina su categoria (`signedAmountFor`).
 - **Fechas**: se guardan como texto ISO (`Qt::ISODate`) en SQLite.
+- **CSV de informes**: separador `;`, decimal `,`, UTF-8 con BOM (compatible con Excel es-ES).
 - **Errores**: repositorios y servicio devuelven `bool` y escriben el mensaje en `QString *error`.
 - **Commits**: convencion `tipo(ambito): descripcion` (p. ej. `feat(data): ...`).
   Un commit por fase/capa.
@@ -130,6 +140,29 @@ tests/                 Tests con Qt Test
   por derivadas. No se permite mover una categoria dentro de su propio subarbol ni entre
   ramas de distinto tipo.
 
+### Informes
+
+- Base de calculo: **transacciones derivadas** (`derived_transactions`) unidas a
+  `transactions.fecha` y a `categories` (tipo y arbol). Nunca se usa el importe del padre.
+- Los importes se mantienen **firmados** en el calculo; la UI muestra magnitudes y el
+  **neto** es `ingresos + gastos` (los gastos son negativos).
+- **Nodo vs rama**: un informe sobre una categoria cuenta solo ese nodo (**directo**) o su
+  **subarbol** (**rama**), con un interruptor "incluir descendientes". Cada nodo expone ambos
+  importes (`directCents` y `subtreeCents`).
+- **Periodo**: rango `desde`/`hasta` como fechas ISO con limites inclusive, mas presets
+  (mes, trimestre, ano, todo, personalizado).
+- **Granularidad temporal**: dia, semana (lunes), mes, trimestre y ano; por defecto mes.
+- **KPIs**: ingresos, gastos, neto y numero de movimientos del periodo.
+- **Desglose por categoria**: tabla plana con la ruta (`Gasto > Comida > Restaurantes`),
+  importe (directo o de rama segun el interruptor), porcentaje sobre el total de la rama y
+  numero de movimientos.
+- **Evolucion temporal**: por bucket, ingresos, gastos, neto y **saldo acumulado**.
+- **Comparativa**: un periodo frente a otro con variacion absoluta y porcentual.
+- **Drill-down**: desde una fila del informe se listan los movimientos que la componen.
+- **Graficas** (Qt Charts): lineas ingresos/gastos/neto, saldo acumulado y barras por categoria.
+- **Exportacion CSV**: la tabla de informe mostrada; formato segun Convenciones.
+- Toda lectura agregada vive en `data/reportrepository.*`; la UI no escribe SQL.
+
 ### Esquema SQLite (version 2)
 
 ```sql
@@ -172,9 +205,8 @@ CREATE TABLE derived_transactions (
 Pendiente (fuera del MVP actual):
 
 - Gestor de categorias en la UI (crear, renombrar, mover, borrar).
-- Informes: totales por **nodo** de categoria y por **rama** (subarbol, con `WITH RECURSIVE`),
-  basados en las transacciones derivadas.
-- Resumen y graficas (ingresos/gastos/saldo) con Qt Charts.
+- (En curso) Informes: totales por nodo y por rama, KPIs, evolucion temporal y graficas con
+  Qt Charts. Ver la seccion "Informes".
 - Filtros y busqueda en la tabla (por fecha, categoria, texto).
 - Internacionalizacion (`.ts`) e icono de aplicacion.
 - Empaquetado/deploy con `windeployqt`.
