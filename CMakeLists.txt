@@ -26,6 +26,7 @@ qt_add_library(gestion_core STATIC
     include/model/derivedtablemodel.h
     include/model/reporttablemodel.h
     include/model/timeseriesmodel.h
+    include/model/movementtablemodel.h
     include/data/database.h
     include/data/categoryrepository.h
     include/data/transactionrepository.h
@@ -40,6 +41,7 @@ qt_add_library(gestion_core STATIC
     src/model/derivedtablemodel.cpp
     src/model/reporttablemodel.cpp
     src/model/timeseriesmodel.cpp
+    src/model/movementtablemodel.cpp
     src/data/database.cpp
     src/data/categoryrepository.cpp
     src/data/transactionrepository.cpp
@@ -66,6 +68,8 @@ qt_add_executable(GestionTransaccionesBancarias
     src/ui/reportfilterwidget.h
     src/ui/reportwindow.cpp
     src/ui/reportwindow.h
+    src/ui/movementlistdialog.cpp
+    src/ui/movementlistdialog.h
     resources/resources.qrc
 )
 

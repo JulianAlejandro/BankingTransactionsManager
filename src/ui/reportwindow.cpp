@@ -39,6 +39,7 @@
 #include "data/reportrepository.h"
 #include "model/reporttablemodel.h"
 #include "model/timeseriesmodel.h"
+#include "ui/movementlistdialog.h"
 #include "ui/reportfilterwidget.h"
 
 namespace {
@@ -152,6 +153,8 @@ ReportWindow::ReportWindow(ReportRepository *reports, CategoryRepository *catego
     m_categoryView->horizontalHeader()->setSectionResizeMode(
         ReportTableModel::CategoryColumn, QHeaderView::Stretch);
     m_categoryView->horizontalHeader()->setStretchLastSection(true);
+    connect(m_categoryView, &QTableView::doubleClicked,
+            this, &ReportWindow::showCategoryMovements);
 
     m_timeView->setModel(m_timeModel);
     m_timeView->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -417,6 +420,31 @@ QChart *ReportWindow::buildCategoryChart(const QList<CategoryTotal> &totals,
     }
 
     return chart;
+}
+
+void ReportWindow::showCategoryMovements(const QModelIndex &index)
+{
+    if (!index.isValid() || index.row() >= m_categoryModel->totals().size()) {
+        return;
+    }
+
+    const ReportPeriod period = m_filters->period();
+    if (!period.isValid()) {
+        return;
+    }
+
+    const CategoryTotal &total = m_categoryModel->totals().at(index.row());
+
+    QList<MovementRow> rows;
+    QString error;
+    if (!m_reports->movements(period, total.categoryId, m_filters->includeDescendants(),
+                              &rows, &error)) {
+        QMessageBox::warning(this, tr("Informes"), error);
+        return;
+    }
+
+    MovementListDialog dialog(total.path, rows, this);
+    dialog.exec();
 }
 
 void ReportWindow::exportCsv()

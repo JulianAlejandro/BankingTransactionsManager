@@ -2,6 +2,7 @@
 #define REPORTWINDOW_H
 
 #include <QMainWindow>
+#include <QModelIndex>
 
 #include "report/reporttypes.h"
 
@@ -30,6 +31,7 @@ public slots:
 
 private slots:
     void exportCsv();
+    void showCategoryMovements(const QModelIndex &index);
 
 private:
     void updateTotals(const PeriodTotals &totals);
