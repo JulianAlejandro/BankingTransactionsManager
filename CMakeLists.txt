@@ -29,6 +29,8 @@ qt_add_library(gestion_core STATIC
     include/data/transactionrepository.h
     include/data/derivedtransactionrepository.h
     include/data/transactionservice.h
+    include/data/reportrepository.h
+    include/report/reporttypes.h
     src/model/category.cpp
     src/model/transaction.cpp
     src/model/derivedtransaction.cpp
@@ -39,6 +41,7 @@ qt_add_library(gestion_core STATIC
     src/data/transactionrepository.cpp
     src/data/derivedtransactionrepository.cpp
     src/data/transactionservice.cpp
+    src/data/reportrepository.cpp
 )
 
 target_include_directories(gestion_core PUBLIC include)
