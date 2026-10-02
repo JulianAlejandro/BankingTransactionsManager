@@ -27,9 +27,9 @@ QString writeCsvFixture(const QString &dir)
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf8);
     out << "F.Valor;Fecha;Concepto;Movimiento;Importe;Divisa\n";
-    out << "02/10/2026;02/10/2026;Bizum;Recibido: comida;8.50;EUR\n";
-    out << "29/09/2026;01/10/2026;Abono de nomina;Weidmuller, s.a.;1803.89;EUR\n";
-    out << "29/09/2026;01/10/2026;Revolut**7187*;Pago con tarjeta;-600;EUR\n";
+    out << "05/03/2026;05/03/2026;Transferencia;Recibido: cena;8.50;EUR\n";
+    out << "06/03/2026;07/03/2026;Abono de nomina;Empresa, s.a.;1800.00;EUR\n";
+    out << "06/03/2026;07/03/2026;Comercio**0000*;Pago con tarjeta;-600;EUR\n";
     return path;
 }
 
@@ -63,8 +63,8 @@ QString writeXlsxFixture(const QString &dir)
     QStringList shared;
     shared << QStringLiteral("F.Valor") << QStringLiteral("Fecha") << QStringLiteral("Concepto")
            << QStringLiteral("Movimiento") << QStringLiteral("Importe")
-           << QStringLiteral("02/10/2026") << QStringLiteral("Bizum")
-           << QStringLiteral("Recibido: comida") << QStringLiteral("29/09/2026")
+           << QStringLiteral("05/03/2026") << QStringLiteral("Transferencia")
+           << QStringLiteral("Recibido: cena") << QStringLiteral("06/03/2026")
            << QStringLiteral("Abono de nomina");
 
     QString sharedXml;
@@ -103,7 +103,7 @@ QString writeXlsxFixture(const QString &dir)
         "<row r=\"3\">"
         "<c r=\"C3\" t=\"s\"><v>8</v></c>"
         "<c r=\"D3\" t=\"s\"><v>9</v></c>"
-        "<c r=\"F3\"><v>1803.89</v></c>"
+        "<c r=\"F3\"><v>1800</v></c>"
         "</row>"
         "</sheetData></worksheet>";
 
@@ -160,8 +160,8 @@ void TestImport::cleanup()
 
 void TestImport::utilsParseDateAndAmount()
 {
-    QCOMPARE(ImportUtils::parseDate(QStringLiteral("02/10/2026")), QDate(2026, 10, 2));
-    QCOMPARE(ImportUtils::parseDate(QStringLiteral("2026-10-02")), QDate(2026, 10, 2));
+    QCOMPARE(ImportUtils::parseDate(QStringLiteral("05/03/2026")), QDate(2026, 3, 5));
+    QCOMPARE(ImportUtils::parseDate(QStringLiteral("2026-03-05")), QDate(2026, 3, 5));
     QVERIFY(!ImportUtils::parseDate(QStringLiteral("")).isValid());
 
     bool ok = false;
@@ -169,19 +169,19 @@ void TestImport::utilsParseDateAndAmount()
     QVERIFY(ok);
     QCOMPARE(ImportUtils::parseAmountCents(QStringLiteral("-600"), &ok), qint64(-60000));
     QVERIFY(ok);
-    QCOMPARE(ImportUtils::parseAmountCents(QStringLiteral("1803.89"), &ok), qint64(180389));
+    QCOMPARE(ImportUtils::parseAmountCents(QStringLiteral("1800.00"), &ok), qint64(180000));
     QVERIFY(ok);
 }
 
 void TestImport::utilsCombineConcept()
 {
-    QCOMPARE(ImportUtils::combineConcept(QStringLiteral("Bizum"), QStringLiteral("Recibido: comida")),
-             QStringLiteral("Bizum - Recibido: comida"));
-    QCOMPARE(ImportUtils::combineConcept(QStringLiteral("Netflix.com"), QStringLiteral("Netflix.com")),
-             QStringLiteral("Netflix.com"));
-    QCOMPARE(ImportUtils::combineConcept(QStringLiteral("Pizza i diversio"),
-                                         QStringLiteral("pizza i diversio")),
-             QStringLiteral("Pizza i diversio"));
+    QCOMPARE(ImportUtils::combineConcept(QStringLiteral("Transferencia"), QStringLiteral("Recibido: cena")),
+             QStringLiteral("Transferencia - Recibido: cena"));
+    QCOMPARE(ImportUtils::combineConcept(QStringLiteral("Suscripcion"), QStringLiteral("Suscripcion")),
+             QStringLiteral("Suscripcion"));
+    QCOMPARE(ImportUtils::combineConcept(QStringLiteral("Restaurante local"),
+                                         QStringLiteral("restaurante local")),
+             QStringLiteral("Restaurante local"));
 }
 
 void TestImport::csvReaderReadsMovements()
@@ -191,8 +191,8 @@ void TestImport::csvReaderReadsMovements()
     QString error;
     QVERIFY2(m_import->load(path, &movements, &error), qPrintable(error));
     QCOMPARE(movements.size(), 3);
-    QCOMPARE(movements.first().date, QDate(2026, 10, 2));
-    QCOMPARE(movements.first().concept, QStringLiteral("Bizum - Recibido: comida"));
+    QCOMPARE(movements.first().date, QDate(2026, 3, 5));
+    QCOMPARE(movements.first().concept, QStringLiteral("Transferencia - Recibido: cena"));
     QCOMPARE(movements.first().amountCents, qint64(850));
     QCOMPARE(movements.at(2).amountCents, qint64(-60000));
 }
@@ -204,10 +204,10 @@ void TestImport::xlsxReaderReadsMovements()
     QString error;
     QVERIFY2(m_import->load(path, &movements, &error), qPrintable(error));
     QCOMPARE(movements.size(), 2);
-    QCOMPARE(movements.first().date, QDate(2026, 10, 2));
-    QCOMPARE(movements.first().concept, QStringLiteral("Bizum - Recibido: comida"));
+    QCOMPARE(movements.first().date, QDate(2026, 3, 5));
+    QCOMPARE(movements.first().concept, QStringLiteral("Transferencia - Recibido: cena"));
     QCOMPARE(movements.first().amountCents, qint64(850));
-    QCOMPARE(movements.at(1).amountCents, qint64(180389));
+    QCOMPARE(movements.at(1).amountCents, qint64(180000));
     QVERIFY(movements.at(1).error.isEmpty());
 }
 
@@ -215,7 +215,7 @@ void TestImport::serviceMarksDuplicates()
 {
     const QString path = writeCsvFixture(m_dir.path());
 
-    // "Revolut**7187* - Pago con tarjeta" es un gasto (-600) -> categoria de gasto.
+    // "Comercio**0000* - Pago con tarjeta" es un gasto (-600) -> categoria de gasto.
     CategoryRepository categories(m_db.connection());
     int expenseId = categories.all().first().id;
     for (const Category &category : categories.all()) {
@@ -225,8 +225,8 @@ void TestImport::serviceMarksDuplicates()
     }
 
     Transaction transaction;
-    transaction.date = QDate(2026, 10, 1);
-    transaction.concept = QStringLiteral("Revolut**7187* - Pago con tarjeta");
+    transaction.date = QDate(2026, 3, 7);
+    transaction.concept = QStringLiteral("Comercio**0000* - Pago con tarjeta");
     transaction.amountCents = -60000;
     DerivedTransaction derived;
     derived.categoryId = expenseId;
