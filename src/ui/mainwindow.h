@@ -6,6 +6,7 @@
 #include <QMainWindow>
 
 #include "data/categoryrepository.h"
+#include "data/importservice.h"
 #include "data/transactionservice.h"
 #include "model/derivedtablemodel.h"
 #include "model/transactiontablemodel.h"
@@ -23,7 +24,8 @@ class MainWindow : public QMainWindow
 
 public:
     MainWindow(TransactionService *service, CategoryRepository *categoryRepository,
-               ReportRepository *reportRepository, QWidget *parent = nullptr);
+               ReportRepository *reportRepository, ImportService *importService,
+               QWidget *parent = nullptr);
     ~MainWindow() override;
 
 private slots:
@@ -33,6 +35,7 @@ private slots:
     void deleteSelectedTransaction();
     void updateDerivedDetail();
     void openReports();
+    void importMovements();
 
 private:
     void setupToolBar();
@@ -43,6 +46,7 @@ private:
     TransactionService *m_service;
     CategoryRepository *m_categoryRepository;
     ReportRepository *m_reportRepository;
+    ImportService *m_importService;
     TransactionTableModel *m_model;
     DerivedTableModel *m_derivedModel;
     ReportWindow *m_reportWindow = nullptr;

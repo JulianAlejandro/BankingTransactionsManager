@@ -10,6 +10,7 @@
 #include <QToolBar>
 
 #include "appinfo.h"
+#include "ui/importdialog.h"
 #include "ui/reportwindow.h"
 #include "ui/transactioneditordialog.h"
 
@@ -25,12 +26,14 @@ QString formatCents(qint64 cents)
 } // namespace
 
 MainWindow::MainWindow(TransactionService *service, CategoryRepository *categoryRepository,
-                       ReportRepository *reportRepository, QWidget *parent)
+                       ReportRepository *reportRepository, ImportService *importService,
+                       QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , m_service(service)
     , m_categoryRepository(categoryRepository)
     , m_reportRepository(reportRepository)
+    , m_importService(importService)
     , m_model(new TransactionTableModel(this))
     , m_derivedModel(new DerivedTableModel(this))
 {
@@ -92,6 +95,20 @@ void MainWindow::setupToolBar()
 
     QAction *reportsAction = toolBar->addAction(tr("Informes"));
     connect(reportsAction, &QAction::triggered, this, &MainWindow::openReports);
+
+    toolBar->addSeparator();
+
+    QAction *importAction = toolBar->addAction(tr("Importar"));
+    connect(importAction, &QAction::triggered, this, &MainWindow::importMovements);
+}
+
+void MainWindow::importMovements()
+{
+    ImportDialog dialog(m_importService, m_categoryRepository, this);
+    dialog.exec();
+    if (dialog.importedCount() > 0) {
+        reload();
+    }
 }
 
 void MainWindow::openReports()
