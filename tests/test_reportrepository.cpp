@@ -25,6 +25,9 @@ private slots:
     void timeSeriesMonthlyBucketsAndCumulative();
     void timeSeriesFillsEmptyBuckets();
     void timeSeriesWeeksStartOnMonday();
+    void movementsDirectAndSubtree();
+    void movementsRespectPeriod();
+    void periodHelpers();
 
 private:
     int categoryIdByName(const QString &name) const;
@@ -286,6 +289,72 @@ void TestReportRepository::timeSeriesWeeksStartOnMonday()
     QVERIFY(buckets.first().start <= date);
     QVERIFY(date <= buckets.first().start.addDays(6));
     QCOMPARE(buckets.first().expenseCents, qint64(-1500));
+}
+
+void TestReportRepository::movementsDirectAndSubtree()
+{
+    const int comida = categoryIdByName(QStringLiteral("Comida"));
+    const int restaurantes = categoryIdByName(QStringLiteral("Restaurantes"));
+    QVERIFY(comida > 0);
+    QVERIFY(restaurantes > 0);
+
+    QVERIFY(addTransaction(QDate(2026, 3, 5), -2000, comida, QStringLiteral("Mercado")) > 0);
+    QVERIFY(addTransaction(QDate(2026, 3, 6), -1000, restaurantes, QStringLiteral("Cafe")) > 0);
+
+    QList<MovementRow> direct;
+    QString error;
+    QVERIFY2(m_reports->movements({QDate(2026, 3, 1), QDate(2026, 3, 31)}, comida, false,
+                                  &direct, &error),
+             qPrintable(error));
+    QCOMPARE(direct.size(), 1);
+    QCOMPARE(direct.first().amountCents, qint64(-2000));
+    QCOMPARE(direct.first().concept, QStringLiteral("Mercado"));
+
+    QList<MovementRow> subtree;
+    QVERIFY2(m_reports->movements({QDate(2026, 3, 1), QDate(2026, 3, 31)}, comida, true,
+                                  &subtree, &error),
+             qPrintable(error));
+    QCOMPARE(subtree.size(), 2);
+    qint64 sum = 0;
+    for (const MovementRow &row : subtree) {
+        sum += row.amountCents;
+        QVERIFY(!row.categoryPath.isEmpty());
+    }
+    QCOMPARE(sum, qint64(-3000));
+    QVERIFY(subtree.first().date <= subtree.last().date);
+}
+
+void TestReportRepository::movementsRespectPeriod()
+{
+    const int restaurantes = categoryIdByName(QStringLiteral("Restaurantes"));
+    QVERIFY(restaurantes > 0);
+
+    QVERIFY(addTransaction(QDate(2026, 1, 10), -1000, restaurantes, QStringLiteral("Enero")) > 0);
+    QVERIFY(addTransaction(QDate(2026, 3, 10), -2000, restaurantes, QStringLiteral("Marzo")) > 0);
+
+    QList<MovementRow> january;
+    QString error;
+    QVERIFY2(m_reports->movements({QDate(2026, 1, 1), QDate(2026, 1, 31)}, restaurantes, false,
+                                  &january, &error),
+             qPrintable(error));
+    QCOMPARE(january.size(), 1);
+    QCOMPARE(january.first().concept, QStringLiteral("Enero"));
+}
+
+void TestReportRepository::periodHelpers()
+{
+    const ReportPeriod march{QDate(2026, 3, 1), QDate(2026, 3, 31)};
+
+    const ReportPeriod previous = previousPeriod(march);
+    QCOMPARE(previous.from, QDate(2026, 1, 29));
+    QCOMPARE(previous.to, QDate(2026, 2, 28));
+
+    const ReportPeriod lastYear = samePeriodLastYear(march);
+    QCOMPARE(lastYear.from, QDate(2025, 3, 1));
+    QCOMPARE(lastYear.to, QDate(2025, 3, 31));
+
+    QVERIFY(!previousPeriod(ReportPeriod{}).isValid());
+    QVERIFY(!samePeriodLastYear(ReportPeriod{}).isValid());
 }
 
 QTEST_GUILESS_MAIN(TestReportRepository)

@@ -273,3 +273,82 @@ bool ReportRepository::timeSeries(const ReportPeriod &period, Granularity granul
     }
     return true;
 }
+
+bool ReportRepository::movements(const ReportPeriod &period, int categoryId,
+                                 bool includeDescendants, QList<MovementRow> *out,
+                                 QString *error) const
+{
+    if (!validPeriod(period, error) || !hasOutput(out, error)) {
+        return false;
+    }
+
+    CategoryRepository categories(m_db);
+    const QList<Category> tree = categories.withPaths(error);
+    if (tree.isEmpty()) {
+        if (error && error->isEmpty()) {
+            *error = QStringLiteral("No hay categorias.");
+        }
+        return false;
+    }
+
+    QHash<int, QString> pathById;
+    QHash<int, QList<int>> children;
+    bool rootExists = false;
+    for (const Category &category : tree) {
+        pathById.insert(category.id, category.path);
+        children[category.parentId].append(category.id);
+        if (category.id == categoryId) {
+            rootExists = true;
+        }
+    }
+    if (!rootExists) {
+        if (error) *error = QStringLiteral("La categoria no existe.");
+        return false;
+    }
+
+    QSet<int> targetIds;
+    std::function<void(int)> collect = [&](int id) {
+        targetIds.insert(id);
+        if (includeDescendants) {
+            for (int child : children.value(id)) {
+                collect(child);
+            }
+        }
+    };
+    collect(categoryId);
+
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "SELECT t.id, d.id, d.category_id, t.fecha,"
+        "       COALESCE(NULLIF(d.concepto, ''), t.concepto),"
+        "       d.importe, COALESCE(t.cuenta, '')"
+        " FROM transactions t"
+        " JOIN derived_transactions d ON d.transaction_id = t.id"
+        " WHERE t.fecha BETWEEN ? AND ?"
+        " ORDER BY t.fecha, t.id, d.id"));
+    query.addBindValue(isoDate(period.from));
+    query.addBindValue(isoDate(period.to));
+    if (!query.exec()) {
+        if (error) *error = query.lastError().text();
+        return false;
+    }
+
+    out->clear();
+    while (query.next()) {
+        const int id = query.value(2).toInt();
+        if (!targetIds.contains(id)) {
+            continue;
+        }
+        MovementRow row;
+        row.transactionId = query.value(0).toInt();
+        row.derivedId = query.value(1).toInt();
+        row.categoryId = id;
+        row.date = QDate::fromString(query.value(3).toString(), Qt::ISODate);
+        row.concept = query.value(4).toString();
+        row.amountCents = query.value(5).toLongLong();
+        row.account = query.value(6).toString();
+        row.categoryPath = pathById.value(id);
+        out->append(row);
+    }
+    return true;
+}

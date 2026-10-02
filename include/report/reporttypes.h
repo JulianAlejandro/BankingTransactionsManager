@@ -53,4 +53,36 @@ struct TimeBucket
     qint64 cumulativeNetCents = 0;   // saldo acumulado hasta este bucket
 };
 
+struct MovementRow
+{
+    int transactionId = -1;
+    int derivedId = -1;
+    int categoryId = -1;
+    QDate date;
+    QString concept;
+    QString categoryPath;
+    qint64 amountCents = 0;    // firmado segun la categoria
+    QString account;
+};
+
+// Periodo de igual duracion inmediatamente anterior.
+inline ReportPeriod previousPeriod(const ReportPeriod &period)
+{
+    if (!period.isValid()) {
+        return {};
+    }
+    const qint64 days = period.from.daysTo(period.to);
+    const QDate to = period.from.addDays(-1);
+    return {to.addDays(-days), to};
+}
+
+// Mismo rango desplazado un ano atras.
+inline ReportPeriod samePeriodLastYear(const ReportPeriod &period)
+{
+    if (!period.isValid()) {
+        return {};
+    }
+    return {period.from.addYears(-1), period.to.addYears(-1)};
+}
+
 #endif // REPORTTYPES_H

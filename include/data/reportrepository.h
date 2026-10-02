@@ -26,6 +26,11 @@ public:
     bool timeSeries(const ReportPeriod &period, Granularity granularity,
                     QList<TimeBucket> *out, QString *error = nullptr) const;
 
+    // Movimientos (transacciones derivadas) de una categoria o de su subarbol
+    // durante el periodo, ordenados por fecha.
+    bool movements(const ReportPeriod &period, int categoryId, bool includeDescendants,
+                   QList<MovementRow> *out, QString *error = nullptr) const;
+
 private:
     QSqlDatabase m_db;
 };
