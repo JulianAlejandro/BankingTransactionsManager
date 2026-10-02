@@ -14,13 +14,16 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
+class ReportRepository;
+class ReportWindow;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
     MainWindow(TransactionService *service, CategoryRepository *categoryRepository,
-               QWidget *parent = nullptr);
+               ReportRepository *reportRepository, QWidget *parent = nullptr);
     ~MainWindow() override;
 
 private slots:
@@ -29,6 +32,7 @@ private slots:
     void editSelectedTransaction();
     void deleteSelectedTransaction();
     void updateDerivedDetail();
+    void openReports();
 
 private:
     void setupToolBar();
@@ -38,8 +42,10 @@ private:
     Ui::MainWindow *ui;
     TransactionService *m_service;
     CategoryRepository *m_categoryRepository;
+    ReportRepository *m_reportRepository;
     TransactionTableModel *m_model;
     DerivedTableModel *m_derivedModel;
+    ReportWindow *m_reportWindow = nullptr;
     QHash<int, QList<DerivedTransaction>> m_derived;
 };
 

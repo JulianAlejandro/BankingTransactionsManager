@@ -10,6 +10,7 @@
 #include <QToolBar>
 
 #include "appinfo.h"
+#include "ui/reportwindow.h"
 #include "ui/transactioneditordialog.h"
 
 namespace {
@@ -24,11 +25,12 @@ QString formatCents(qint64 cents)
 } // namespace
 
 MainWindow::MainWindow(TransactionService *service, CategoryRepository *categoryRepository,
-                       QWidget *parent)
+                       ReportRepository *reportRepository, QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , m_service(service)
     , m_categoryRepository(categoryRepository)
+    , m_reportRepository(reportRepository)
     , m_model(new TransactionTableModel(this))
     , m_derivedModel(new DerivedTableModel(this))
 {
@@ -85,6 +87,25 @@ void MainWindow::setupToolBar()
     QAction *refreshAction = toolBar->addAction(tr("Refrescar"));
     refreshAction->setShortcut(QKeySequence::Refresh);
     connect(refreshAction, &QAction::triggered, this, &MainWindow::reload);
+
+    toolBar->addSeparator();
+
+    QAction *reportsAction = toolBar->addAction(tr("Informes"));
+    connect(reportsAction, &QAction::triggered, this, &MainWindow::openReports);
+}
+
+void MainWindow::openReports()
+{
+    if (m_reportWindow == nullptr) {
+        m_reportWindow = new ReportWindow(m_reportRepository, m_categoryRepository, this);
+        m_reportWindow->setAttribute(Qt::WA_DeleteOnClose);
+        connect(m_reportWindow, &QObject::destroyed, this,
+                [this]() { m_reportWindow = nullptr; });
+    }
+    m_reportWindow->show();
+    m_reportWindow->raise();
+    m_reportWindow->activateWindow();
+    m_reportWindow->refresh();
 }
 
 void MainWindow::reload()

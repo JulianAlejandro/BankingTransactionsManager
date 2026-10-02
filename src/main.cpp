@@ -6,6 +6,7 @@
 #include "appinfo.h"
 #include "data/categoryrepository.h"
 #include "data/database.h"
+#include "data/reportrepository.h"
 #include "data/transactionservice.h"
 #include "ui/mainwindow.h"
 
@@ -31,8 +32,9 @@ int main(int argc, char *argv[])
 
     TransactionService service(database.connection());
     CategoryRepository categoryRepository(database.connection());
+    ReportRepository reportRepository(database.connection());
 
-    MainWindow window(&service, &categoryRepository);
+    MainWindow window(&service, &categoryRepository, &reportRepository);
     window.show();
 
     return app.exec();
