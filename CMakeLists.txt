@@ -14,7 +14,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Sql Gui)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Sql Gui Charts)
 
 qt_standard_project_setup()
 
@@ -75,7 +75,7 @@ target_compile_definitions(GestionTransaccionesBancarias PRIVATE
 
 target_include_directories(GestionTransaccionesBancarias PRIVATE src)
 
-target_link_libraries(GestionTransaccionesBancarias PRIVATE Qt6::Widgets gestion_core)
+target_link_libraries(GestionTransaccionesBancarias PRIVATE Qt6::Widgets Qt6::Charts gestion_core)
 
 set_target_properties(GestionTransaccionesBancarias PROPERTIES
     WIN32_EXECUTABLE ON

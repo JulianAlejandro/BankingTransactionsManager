@@ -6,6 +6,8 @@
 #include "report/reporttypes.h"
 
 class QAbstractItemModel;
+class QChart;
+class QChartView;
 class QLabel;
 class QTabWidget;
 class QTableView;
@@ -31,6 +33,9 @@ private slots:
 
 private:
     void updateTotals(const PeriodTotals &totals);
+    QChart *buildEvolutionChart(const QList<TimeBucket> &buckets) const;
+    QChart *buildCategoryChart(const QList<CategoryTotal> &totals,
+                               bool includeDescendants) const;
     bool writeModelCsv(const QString &path, QAbstractItemModel *model) const;
 
     ReportRepository *m_reports;
@@ -40,6 +45,8 @@ private:
     TimeSeriesModel *m_timeModel;
     QTableView *m_categoryView;
     QTableView *m_timeView;
+    QChartView *m_categoryChartView;
+    QChartView *m_evolutionChartView;
     QTabWidget *m_tabs;
     QLabel *m_incomeValue;
     QLabel *m_expenseValue;

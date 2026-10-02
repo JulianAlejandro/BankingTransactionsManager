@@ -2,6 +2,8 @@
 
 #include <QAbstractItemModel>
 #include <QAction>
+#include <QColor>
+#include <QDateTime>
 #include <QFile>
 #include <QFileDialog>
 #include <QGroupBox>
@@ -10,13 +12,25 @@
 #include <QLabel>
 #include <QLocale>
 #include <QMessageBox>
+#include <QPainter>
+#include <QSplitter>
 #include <QStatusBar>
 #include <QStringConverter>
 #include <QTabWidget>
 #include <QTableView>
 #include <QTextStream>
+#include <QTime>
 #include <QToolBar>
 #include <QVBoxLayout>
+#include <QtCharts/QBarCategoryAxis>
+#include <QtCharts/QBarSeries>
+#include <QtCharts/QBarSet>
+#include <QtCharts/QChart>
+#include <QtCharts/QChartView>
+#include <QtCharts/QDateTimeAxis>
+#include <QtCharts/QLegend>
+#include <QtCharts/QLineSeries>
+#include <QtCharts/QValueAxis>
 
 #include "data/categoryrepository.h"
 #include "data/reportrepository.h"
@@ -63,6 +77,12 @@ QString csvField(const QString &value)
     return value;
 }
 
+QString shortPath(const QString &path)
+{
+    const int position = path.lastIndexOf(QStringLiteral(" > "));
+    return position < 0 ? path : path.mid(position + 3);
+}
+
 } // namespace
 
 ReportWindow::ReportWindow(ReportRepository *reports, CategoryRepository *categories,
@@ -75,6 +95,8 @@ ReportWindow::ReportWindow(ReportRepository *reports, CategoryRepository *catego
     , m_timeModel(new TimeSeriesModel(this))
     , m_categoryView(new QTableView(this))
     , m_timeView(new QTableView(this))
+    , m_categoryChartView(new QChartView(this))
+    , m_evolutionChartView(new QChartView(this))
     , m_tabs(new QTabWidget(this))
 {
     setWindowTitle(tr("Informes"));
@@ -108,8 +130,19 @@ ReportWindow::ReportWindow(ReportRepository *reports, CategoryRepository *catego
         TimeSeriesModel::PeriodColumn, QHeaderView::Stretch);
     m_timeView->horizontalHeader()->setStretchLastSection(true);
 
-    m_tabs->addTab(m_categoryView, tr("Por categoria"));
-    m_tabs->addTab(m_timeView, tr("Evolucion"));
+    m_categoryChartView->setRenderHint(QPainter::Antialiasing);
+    m_evolutionChartView->setRenderHint(QPainter::Antialiasing);
+
+    QSplitter *categorySplitter = new QSplitter(Qt::Vertical, this);
+    categorySplitter->addWidget(m_categoryChartView);
+    categorySplitter->addWidget(m_categoryView);
+
+    QSplitter *evolutionSplitter = new QSplitter(Qt::Vertical, this);
+    evolutionSplitter->addWidget(m_evolutionChartView);
+    evolutionSplitter->addWidget(m_timeView);
+
+    m_tabs->addTab(categorySplitter, tr("Por categoria"));
+    m_tabs->addTab(evolutionSplitter, tr("Evolucion"));
     root->addWidget(m_tabs, 1);
 
     setCentralWidget(central);
@@ -154,6 +187,15 @@ void ReportWindow::refresh()
     }
     m_timeModel->setBuckets(buckets, m_filters->granularity());
 
+    QChart *oldCategoryChart = m_categoryChartView->chart();
+    m_categoryChartView->setChart(
+        buildCategoryChart(categories, m_filters->includeDescendants()));
+    delete oldCategoryChart;
+
+    QChart *oldEvolutionChart = m_evolutionChartView->chart();
+    m_evolutionChartView->setChart(buildEvolutionChart(buckets));
+    delete oldEvolutionChart;
+
     statusBar()->showMessage(tr("%1 movimientos en el periodo").arg(totals.count));
 }
 
@@ -167,6 +209,149 @@ void ReportWindow::updateTotals(const PeriodTotals &totals)
     m_incomeValue->setStyleSheet(QStringLiteral("color: #1b7f3b"));
     m_netValue->setStyleSheet(totals.netCents >= 0 ? QStringLiteral("color: #1b7f3b")
                                                    : QStringLiteral("color: #b3261e"));
+}
+
+QChart *ReportWindow::buildEvolutionChart(const QList<TimeBucket> &buckets) const
+{
+    QChart *chart = new QChart();
+    chart->setTitle(tr("Evolucion"));
+    chart->legend()->setVisible(true);
+    chart->legend()->setAlignment(Qt::AlignBottom);
+
+    QLineSeries *income = new QLineSeries();
+    income->setName(tr("Ingresos"));
+    QLineSeries *expense = new QLineSeries();
+    expense->setName(tr("Gastos"));
+    QLineSeries *net = new QLineSeries();
+    net->setName(tr("Neto"));
+    QLineSeries *cumulative = new QLineSeries();
+    cumulative->setName(tr("Acumulado"));
+
+    bool first = true;
+    double minValue = 0.0;
+    double maxValue = 0.0;
+    const auto track = [&](double value) {
+        if (first) {
+            minValue = value;
+            maxValue = value;
+            first = false;
+        } else {
+            minValue = qMin(minValue, value);
+            maxValue = qMax(maxValue, value);
+        }
+    };
+
+    for (const TimeBucket &bucket : buckets) {
+        const qreal x = QDateTime(bucket.start, QTime(0, 0)).toMSecsSinceEpoch();
+        const double incomeValue = bucket.incomeCents / 100.0;
+        const double expenseValue = -bucket.expenseCents / 100.0;
+        const double netValue = bucket.netCents / 100.0;
+        const double cumulativeValue = bucket.cumulativeNetCents / 100.0;
+        income->append(x, incomeValue);
+        expense->append(x, expenseValue);
+        net->append(x, netValue);
+        cumulative->append(x, cumulativeValue);
+        track(incomeValue);
+        track(expenseValue);
+        track(netValue);
+        track(cumulativeValue);
+    }
+
+    chart->addSeries(income);
+    chart->addSeries(expense);
+    chart->addSeries(net);
+    chart->addSeries(cumulative);
+
+    QDateTimeAxis *axisX = new QDateTimeAxis();
+    QString format;
+    switch (m_filters->granularity()) {
+    case Granularity::Day:
+    case Granularity::Week:
+        format = QStringLiteral("dd/MM");
+        break;
+    case Granularity::Month:
+    case Granularity::Quarter:
+        format = QStringLiteral("MM/yy");
+        break;
+    case Granularity::Year:
+        format = QStringLiteral("yyyy");
+        break;
+    }
+    axisX->setFormat(format);
+    if (!buckets.isEmpty()) {
+        const QDate firstDate = buckets.first().start;
+        QDate afterLast = buckets.last().start;
+        switch (m_filters->granularity()) {
+        case Granularity::Day: afterLast = afterLast.addDays(1); break;
+        case Granularity::Week: afterLast = afterLast.addDays(7); break;
+        case Granularity::Month: afterLast = afterLast.addMonths(1); break;
+        case Granularity::Quarter: afterLast = afterLast.addMonths(3); break;
+        case Granularity::Year: afterLast = afterLast.addYears(1); break;
+        }
+        axisX->setRange(QDateTime(firstDate, QTime(0, 0)),
+                        QDateTime(afterLast, QTime(0, 0)));
+        axisX->setTickCount(qBound(2, buckets.size(), 12));
+    }
+    chart->addAxis(axisX, Qt::AlignBottom);
+
+    QValueAxis *axisY = new QValueAxis();
+    axisY->setLabelFormat(QStringLiteral("%.0f"));
+    double span = maxValue - minValue;
+    if (span <= 0.0) {
+        span = qMax(1.0, qAbs(maxValue));
+    }
+    axisY->setRange(minValue - span * 0.1, maxValue + span * 0.1);
+    chart->addAxis(axisY, Qt::AlignLeft);
+
+    const QList<QLineSeries *> series = {income, expense, net, cumulative};
+    for (QLineSeries *line : series) {
+        line->attachAxis(axisX);
+        line->attachAxis(axisY);
+    }
+
+    return chart;
+}
+
+QChart *ReportWindow::buildCategoryChart(const QList<CategoryTotal> &totals,
+                                         bool includeDescendants) const
+{
+    QChart *chart = new QChart();
+    chart->setTitle(tr("Importe por categoria"));
+    chart->legend()->setVisible(false);
+
+    QBarSeries *series = new QBarSeries();
+    QBarSet *set = new QBarSet(tr("Importe"));
+    QStringList labels;
+    double maxValue = 0.0;
+
+    for (int index = 1; index < totals.size(); ++index) {
+        const CategoryTotal &total = totals.at(index);
+        const qint64 cents = includeDescendants ? total.subtreeCents : total.directCents;
+        const double value = qAbs(cents / 100.0);
+        *set << value;
+        labels << shortPath(total.path);
+        maxValue = qMax(maxValue, value);
+    }
+
+    set->setColor(!totals.isEmpty() && totals.first().type == CategoryType::Income
+                      ? QColor(0x1b, 0x7f, 0x3b)
+                      : QColor(0xb3, 0x26, 0x1e));
+    series->append(set);
+    chart->addSeries(series);
+
+    QBarCategoryAxis *axisX = new QBarCategoryAxis();
+    axisX->append(labels);
+    axisX->setLabelsAngle(-45);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    series->attachAxis(axisX);
+
+    QValueAxis *axisY = new QValueAxis();
+    axisY->setLabelFormat(QStringLiteral("%.0f"));
+    axisY->setRange(0.0, maxValue > 0.0 ? maxValue * 1.1 : 1.0);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisY);
+
+    return chart;
 }
 
 void ReportWindow::exportCsv()
