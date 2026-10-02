@@ -157,8 +157,11 @@ tests/                 Tests con Qt Test
   importe (directo o de rama segun el interruptor), porcentaje sobre el total de la rama y
   numero de movimientos.
 - **Evolucion temporal**: por bucket, ingresos, gastos, neto y **saldo acumulado**.
-- **Comparativa**: un periodo frente a otro con variacion absoluta y porcentual.
-- **Drill-down**: desde una fila del informe se listan los movimientos que la componen.
+- **Comparativa**: un periodo frente a otro con variacion absoluta y porcentual. El segundo
+  periodo puede ser el anterior de igual duracion, el mismo del ano anterior o un rango
+  personalizado; se muestra tabla de KPIs y barras agrupadas A vs B.
+- **Drill-down**: desde una fila del desglose se listan los movimientos que la componen
+  (respetando el interruptor "incluir descendientes"), en un dialogo.
 - **Graficas** (Qt Charts): lineas ingresos/gastos/neto, saldo acumulado y barras por categoria.
 - **Exportacion CSV**: la tabla de informe mostrada; formato segun Convenciones.
 - Toda lectura agregada vive en `data/reportrepository.*`; la UI no escribe SQL.
