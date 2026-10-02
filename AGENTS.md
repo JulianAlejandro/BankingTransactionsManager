@@ -45,6 +45,13 @@ Ejecutar los tests:
 & "C:\Qt\Tools\CMake_64\bin\ctest.exe" --test-dir build --output-on-failure
 ```
 
+Sembrar datos de ejemplo para pruebas (con la aplicacion cerrada):
+
+```powershell
+& "C:\Qt\Tools\CMake_64\bin\cmake.exe" --build build --target seed_demo
+.\build\seed_demo.exe
+```
+
 En Qt Creator: abrir `CMakeLists.txt`, seleccionar el kit MinGW 64-bit y usar Ctrl+R.
 
 ## Arquitectura
@@ -78,6 +85,8 @@ include/  y  src/
     reportwindow.*            Ventana de informes (KPIs, desglose, graficas)
     reportfilterwidget.*      Filtros de informes (periodo, categoria, granularidad)
 tests/                 Tests con Qt Test
+tools/                 Herramientas de desarrollo
+  seed_demo.cpp        Siembra 13 transacciones de ejemplo (solo si la BD esta vacia)
 ```
 
 - `gestion_core` es una libreria estatica con `model/`, `data/` y los modelos de tabla.

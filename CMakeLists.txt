@@ -92,3 +92,13 @@ include(CTest)
 if(BUILD_TESTING AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
     add_subdirectory(tests)
 endif()
+
+qt_add_executable(seed_demo
+    tools/seed_demo.cpp
+)
+
+set_target_properties(seed_demo PROPERTIES
+    WIN32_EXECUTABLE OFF
+)
+
+target_link_libraries(seed_demo PRIVATE gestion_core)
