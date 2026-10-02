@@ -15,6 +15,7 @@
 #include <QLocale>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPen>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QStringConverter>
@@ -87,6 +88,10 @@ QString shortPath(const QString &path)
 
 void addNoDataNotice(QChart *chart)
 {
+    if (chart == nullptr || chart->scene() == nullptr) {
+        return;
+    }
+
     QGraphicsSimpleTextItem *item = new QGraphicsSimpleTextItem(
         ReportWindow::tr("Sin datos en el periodo"));
     QFont font = item->font();
@@ -219,14 +224,22 @@ void ReportWindow::refresh()
     }
     m_timeModel->setBuckets(buckets, m_filters->granularity());
 
+    bool categoryHasData = false;
     QChart *oldCategoryChart = m_categoryChartView->chart();
-    m_categoryChartView->setChart(
-        buildCategoryChart(categories, m_filters->includeDescendants()));
+    m_categoryChartView->setChart(buildCategoryChart(
+        categories, m_filters->includeDescendants(), &categoryHasData));
     delete oldCategoryChart;
+    if (!categoryHasData) {
+        addNoDataNotice(m_categoryChartView->chart());
+    }
 
+    bool evolutionHasData = false;
     QChart *oldEvolutionChart = m_evolutionChartView->chart();
-    m_evolutionChartView->setChart(buildEvolutionChart(buckets));
+    m_evolutionChartView->setChart(buildEvolutionChart(buckets, &evolutionHasData));
     delete oldEvolutionChart;
+    if (!evolutionHasData) {
+        addNoDataNotice(m_evolutionChartView->chart());
+    }
 
     statusBar()->showMessage(tr("%1 movimientos en el periodo").arg(totals.count));
 }
@@ -243,7 +256,7 @@ void ReportWindow::updateTotals(const PeriodTotals &totals)
                                                    : QStringLiteral("color: #b3261e"));
 }
 
-QChart *ReportWindow::buildEvolutionChart(const QList<TimeBucket> &buckets) const
+QChart *ReportWindow::buildEvolutionChart(const QList<TimeBucket> &buckets, bool *hasData) const
 {
     QChart *chart = new QChart();
     chart->setTitle(tr("Evolucion"));
@@ -260,7 +273,7 @@ QChart *ReportWindow::buildEvolutionChart(const QList<TimeBucket> &buckets) cons
     cumulative->setName(tr("Acumulado"));
 
     bool first = true;
-    bool hasData = false;
+    bool dataPresent = false;
     double minValue = 0.0;
     double maxValue = 0.0;
     const auto track = [&](double value) {
@@ -285,7 +298,7 @@ QChart *ReportWindow::buildEvolutionChart(const QList<TimeBucket> &buckets) cons
         net->append(x, netValue);
         cumulative->append(x, cumulativeValue);
         if (bucket.incomeCents != 0 || bucket.expenseCents != 0) {
-            hasData = true;
+            dataPresent = true;
         }
         track(incomeValue);
         track(expenseValue);
@@ -339,23 +352,29 @@ QChart *ReportWindow::buildEvolutionChart(const QList<TimeBucket> &buckets) cons
     axisY->setRange(minValue - span * 0.1, maxValue + span * 0.1);
     chart->addAxis(axisY, Qt::AlignLeft);
 
+    const bool showMarkers = buckets.size() <= 8;
     const QList<QLineSeries *> series = {income, expense, net, cumulative};
     for (QLineSeries *line : series) {
-        line->setPointsVisible(true);
-        line->setMarkerSize(7.0);
+        QPen pen = line->pen();
+        pen.setWidthF(1.5);
+        line->setPen(pen);
+        line->setPointsVisible(showMarkers);
+        if (showMarkers) {
+            line->setMarkerSize(5.0);
+        }
         line->attachAxis(axisX);
         line->attachAxis(axisY);
     }
 
-    if (!hasData) {
-        addNoDataNotice(chart);
+    if (hasData) {
+        *hasData = dataPresent;
     }
 
     return chart;
 }
 
 QChart *ReportWindow::buildCategoryChart(const QList<CategoryTotal> &totals,
-                                         bool includeDescendants) const
+                                         bool includeDescendants, bool *hasData) const
 {
     QChart *chart = new QChart();
     chart->setTitle(tr("Importe por categoria"));
@@ -393,8 +412,8 @@ QChart *ReportWindow::buildCategoryChart(const QList<CategoryTotal> &totals,
     chart->addAxis(axisY, Qt::AlignLeft);
     series->attachAxis(axisY);
 
-    if (maxValue <= 0.0) {
-        addNoDataNotice(chart);
+    if (hasData) {
+        *hasData = maxValue > 0.0;
     }
 
     return chart;

@@ -33,9 +33,10 @@ private slots:
 
 private:
     void updateTotals(const PeriodTotals &totals);
-    QChart *buildEvolutionChart(const QList<TimeBucket> &buckets) const;
+    QChart *buildEvolutionChart(const QList<TimeBucket> &buckets,
+                                bool *hasData = nullptr) const;
     QChart *buildCategoryChart(const QList<CategoryTotal> &totals,
-                               bool includeDescendants) const;
+                               bool includeDescendants, bool *hasData = nullptr) const;
     bool writeModelCsv(const QString &path, QAbstractItemModel *model) const;
 
     ReportRepository *m_reports;
