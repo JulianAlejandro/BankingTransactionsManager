@@ -21,12 +21,15 @@ public:
     int rootCategoryId() const;
     bool includeDescendants() const;
     Granularity granularity() const;
+    bool hasComparison() const;
+    ReportPeriod comparisonPeriod() const;
 
 signals:
     void changed();
 
 private slots:
     void applyPreset();
+    void applyCompareState();
     void emitChanged();
 
 private:
@@ -38,6 +41,9 @@ private:
     QComboBox *m_category;
     QCheckBox *m_descendants;
     QComboBox *m_granularity;
+    QComboBox *m_compare;
+    QDateEdit *m_compareFrom;
+    QDateEdit *m_compareTo;
 };
 
 #endif // REPORTFILTERWIDGET_H

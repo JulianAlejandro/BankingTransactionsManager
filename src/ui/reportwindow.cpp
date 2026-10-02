@@ -37,6 +37,7 @@
 
 #include "data/categoryrepository.h"
 #include "data/reportrepository.h"
+#include "model/comparisontablemodel.h"
 #include "model/reporttablemodel.h"
 #include "model/timeseriesmodel.h"
 #include "ui/movementlistdialog.h"
@@ -87,14 +88,18 @@ QString shortPath(const QString &path)
     return position < 0 ? path : path.mid(position + 3);
 }
 
-void addNoDataNotice(QChart *chart)
+QString shortDate(const QDate &date)
+{
+    return esLocale().toString(date, QLocale::ShortFormat);
+}
+
+void addNoDataNotice(QChart *chart, const QString &message)
 {
     if (chart == nullptr || chart->scene() == nullptr) {
         return;
     }
 
-    QGraphicsSimpleTextItem *item = new QGraphicsSimpleTextItem(
-        ReportWindow::tr("Sin datos en el periodo"));
+    QGraphicsSimpleTextItem *item = new QGraphicsSimpleTextItem(message);
     QFont font = item->font();
     font.setPointSize(font.pointSize() + 2);
     item->setFont(font);
@@ -126,10 +131,14 @@ ReportWindow::ReportWindow(ReportRepository *reports, CategoryRepository *catego
     , m_filters(new ReportFilterWidget(categories, this))
     , m_categoryModel(new ReportTableModel(this))
     , m_timeModel(new TimeSeriesModel(this))
+    , m_compareModel(new ComparisonTableModel(this))
     , m_categoryView(new QTableView(this))
     , m_timeView(new QTableView(this))
+    , m_compareView(new QTableView(this))
     , m_categoryChartView(new QChartView(this))
     , m_evolutionChartView(new QChartView(this))
+    , m_compareChartView(new QChartView(this))
+    , m_compareSummary(new QLabel(this))
     , m_tabs(new QTabWidget(this))
 {
     setWindowTitle(tr("Informes"));
@@ -165,8 +174,18 @@ ReportWindow::ReportWindow(ReportRepository *reports, CategoryRepository *catego
         TimeSeriesModel::PeriodColumn, QHeaderView::Stretch);
     m_timeView->horizontalHeader()->setStretchLastSection(true);
 
+    m_compareView->setModel(m_compareModel);
+    m_compareView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_compareView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_compareView->setAlternatingRowColors(false);
+    m_compareView->verticalHeader()->setVisible(false);
+    m_compareView->horizontalHeader()->setSectionResizeMode(
+        ComparisonTableModel::MetricColumn, QHeaderView::Stretch);
+    m_compareView->horizontalHeader()->setStretchLastSection(true);
+
     m_categoryChartView->setRenderHint(QPainter::Antialiasing);
     m_evolutionChartView->setRenderHint(QPainter::Antialiasing);
+    m_compareChartView->setRenderHint(QPainter::Antialiasing);
 
     QSplitter *categorySplitter = new QSplitter(Qt::Vertical, this);
     categorySplitter->addWidget(m_categoryChartView);
@@ -176,8 +195,18 @@ ReportWindow::ReportWindow(ReportRepository *reports, CategoryRepository *catego
     evolutionSplitter->addWidget(m_evolutionChartView);
     evolutionSplitter->addWidget(m_timeView);
 
+    QSplitter *compareSplitter = new QSplitter(Qt::Vertical, this);
+    compareSplitter->addWidget(m_compareChartView);
+    compareSplitter->addWidget(m_compareView);
+
+    QWidget *compareTab = new QWidget(this);
+    QVBoxLayout *compareLayout = new QVBoxLayout(compareTab);
+    compareLayout->addWidget(m_compareSummary);
+    compareLayout->addWidget(compareSplitter, 1);
+
     m_tabs->addTab(categorySplitter, tr("Por categoria"));
     m_tabs->addTab(evolutionSplitter, tr("Evolucion"));
+    m_tabs->addTab(compareTab, tr("Comparativa"));
     root->addWidget(m_tabs, 1);
 
     setCentralWidget(central);
@@ -233,7 +262,8 @@ void ReportWindow::refresh()
         categories, m_filters->includeDescendants(), &categoryHasData));
     delete oldCategoryChart;
     if (!categoryHasData) {
-        addNoDataNotice(m_categoryChartView->chart());
+        addNoDataNotice(m_categoryChartView->chart(),
+                        tr("Sin datos en el periodo"));
     }
 
     bool evolutionHasData = false;
@@ -241,7 +271,39 @@ void ReportWindow::refresh()
     m_evolutionChartView->setChart(buildEvolutionChart(buckets, &evolutionHasData));
     delete oldEvolutionChart;
     if (!evolutionHasData) {
-        addNoDataNotice(m_evolutionChartView->chart());
+        addNoDataNotice(m_evolutionChartView->chart(),
+                        tr("Sin datos en el periodo"));
+    }
+
+    const bool hasComparison = m_filters->hasComparison();
+    PeriodTotals comparison;
+    if (hasComparison) {
+        const ReportPeriod periodB = m_filters->comparisonPeriod();
+        if (!m_reports->totals(periodB, &comparison, &error)) {
+            QMessageBox::warning(this, tr("Informes"), error);
+        }
+    }
+    m_compareModel->setData(totals, hasComparison ? comparison : PeriodTotals());
+    if (hasComparison) {
+        const ReportPeriod periodB = m_filters->comparisonPeriod();
+        m_compareSummary->setText(tr("A: %1 - %2   \u00b7   B: %3 - %4")
+                                      .arg(shortDate(period.from))
+                                      .arg(shortDate(period.to))
+                                      .arg(shortDate(periodB.from))
+                                      .arg(shortDate(periodB.to)));
+    } else {
+        m_compareSummary->setText(tr("Selecciona una comparacion en el filtro."));
+    }
+
+    bool comparisonHasData = false;
+    QChart *oldCompareChart = m_compareChartView->chart();
+    m_compareChartView->setChart(buildComparisonChart(
+        totals, hasComparison ? comparison : PeriodTotals(), &comparisonHasData));
+    delete oldCompareChart;
+    if (!comparisonHasData) {
+        addNoDataNotice(m_compareChartView->chart(),
+                        hasComparison ? tr("Sin datos en el periodo")
+                                      : tr("Selecciona una comparacion"));
     }
 
     statusBar()->showMessage(tr("%1 movimientos en el periodo").arg(totals.count));
@@ -417,6 +479,63 @@ QChart *ReportWindow::buildCategoryChart(const QList<CategoryTotal> &totals,
 
     if (hasData) {
         *hasData = maxValue > 0.0;
+    }
+
+    return chart;
+}
+
+QChart *ReportWindow::buildComparisonChart(const PeriodTotals &a, const PeriodTotals &b,
+                                           bool *hasData) const
+{
+    QChart *chart = new QChart();
+    chart->setTitle(tr("Comparativa A vs B"));
+    chart->legend()->setVisible(true);
+    chart->legend()->setAlignment(Qt::AlignBottom);
+
+    const double aIncome = a.incomeCents / 100.0;
+    const double aExpense = -a.expenseCents / 100.0;
+    const double aNet = a.netCents / 100.0;
+    const double bIncome = b.incomeCents / 100.0;
+    const double bExpense = -b.expenseCents / 100.0;
+    const double bNet = b.netCents / 100.0;
+
+    QBarSet *setA = new QBarSet(tr("Periodo A"));
+    *setA << aIncome << aExpense << aNet;
+    setA->setColor(QColor(0x1f, 0x77, 0xb4));
+
+    QBarSet *setB = new QBarSet(tr("Periodo B"));
+    *setB << bIncome << bExpense << bNet;
+    setB->setColor(QColor(0xf0, 0x8c, 0x00));
+
+    QBarSeries *series = new QBarSeries();
+    series->append(setA);
+    series->append(setB);
+    chart->addSeries(series);
+
+    QBarCategoryAxis *axisX = new QBarCategoryAxis();
+    axisX->append({tr("Ingresos"), tr("Gastos"), tr("Neto")});
+    chart->addAxis(axisX, Qt::AlignBottom);
+    series->attachAxis(axisX);
+
+    double minValue = qMin(0.0, qMin(aNet, bNet));
+    double maxValue = qMax(qMax(qMax(aIncome, aExpense), qMax(bIncome, bExpense)),
+                           qMax(aNet, bNet));
+    maxValue = qMax(0.0, maxValue);
+    double span = maxValue - minValue;
+    if (span <= 0.0) {
+        span = 1.0;
+    }
+
+    QValueAxis *axisY = new QValueAxis();
+    axisY->setLabelFormat(QStringLiteral("%.0f"));
+    axisY->setRange(minValue - span * 0.1, maxValue + span * 0.1);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisY);
+
+    if (hasData) {
+        *hasData = aIncome != 0.0 || aExpense != 0.0 || aNet != 0.0
+            || bIncome != 0.0 || bExpense != 0.0 || bNet != 0.0
+            || a.count != 0 || b.count != 0;
     }
 
     return chart;

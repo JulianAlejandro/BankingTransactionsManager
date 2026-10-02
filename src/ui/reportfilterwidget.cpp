@@ -17,6 +17,9 @@ ReportFilterWidget::ReportFilterWidget(CategoryRepository *categories, QWidget *
     , m_category(new QComboBox(this))
     , m_descendants(new QCheckBox(tr("Incluir descendientes"), this))
     , m_granularity(new QComboBox(this))
+    , m_compare(new QComboBox(this))
+    , m_compareFrom(new QDateEdit(this))
+    , m_compareTo(new QDateEdit(this))
 {
     m_preset->addItems({tr("Personalizado"), tr("Este mes"), tr("Mes anterior"),
                         tr("Este trimestre"), tr("Este ano"), tr("Todo")});
@@ -35,6 +38,13 @@ ReportFilterWidget::ReportFilterWidget(CategoryRepository *categories, QWidget *
     m_granularity->addItem(tr("Ano"), static_cast<int>(Granularity::Year));
     m_granularity->setCurrentIndex(2);
 
+    m_compare->addItems({tr("Sin comparar"), tr("Periodo anterior"), tr("Ano anterior"),
+                         tr("Personalizado")});
+    m_compareFrom->setDisplayFormat(QStringLiteral("dd/MM/yyyy"));
+    m_compareTo->setDisplayFormat(QStringLiteral("dd/MM/yyyy"));
+    m_compareFrom->setCalendarPopup(true);
+    m_compareTo->setCalendarPopup(true);
+
     populateCategories(categories);
 
     QGridLayout *layout = new QGridLayout(this);
@@ -49,6 +59,12 @@ ReportFilterWidget::ReportFilterWidget(CategoryRepository *categories, QWidget *
     layout->addWidget(m_descendants, 1, 3);
     layout->addWidget(new QLabel(tr("Granularidad"), this), 1, 4);
     layout->addWidget(m_granularity, 1, 5);
+    layout->addWidget(new QLabel(tr("Comparar con"), this), 2, 0);
+    layout->addWidget(m_compare, 2, 1);
+    layout->addWidget(new QLabel(tr("B desde"), this), 2, 2);
+    layout->addWidget(m_compareFrom, 2, 3);
+    layout->addWidget(new QLabel(tr("B hasta"), this), 2, 4);
+    layout->addWidget(m_compareTo, 2, 5);
     layout->setColumnStretch(1, 1);
 
     connect(m_preset, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -60,6 +76,10 @@ ReportFilterWidget::ReportFilterWidget(CategoryRepository *categories, QWidget *
             this, &ReportFilterWidget::emitChanged);
     connect(m_from, &QDateEdit::dateChanged, this, &ReportFilterWidget::emitChanged);
     connect(m_to, &QDateEdit::dateChanged, this, &ReportFilterWidget::emitChanged);
+    connect(m_compare, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int) { applyCompareState(); emitChanged(); });
+    connect(m_compareFrom, &QDateEdit::dateChanged, this, &ReportFilterWidget::emitChanged);
+    connect(m_compareTo, &QDateEdit::dateChanged, this, &ReportFilterWidget::emitChanged);
 
     applyPreset();
 }
@@ -140,7 +160,38 @@ void ReportFilterWidget::applyPreset()
 
     m_from->setReadOnly(!custom);
     m_to->setReadOnly(!custom);
+    applyCompareState();
     emitChanged();
+}
+
+void ReportFilterWidget::applyCompareState()
+{
+    const int mode = m_compare->currentIndex();
+    const ReportPeriod a = period();
+
+    if (mode == 1) {
+        const ReportPeriod b = previousPeriod(a);
+        if (b.isValid()) {
+            QSignalBlocker blockFrom(m_compareFrom);
+            QSignalBlocker blockTo(m_compareTo);
+            m_compareFrom->setDate(b.from);
+            m_compareTo->setDate(b.to);
+        }
+    } else if (mode == 2) {
+        const ReportPeriod b = samePeriodLastYear(a);
+        if (b.isValid()) {
+            QSignalBlocker blockFrom(m_compareFrom);
+            QSignalBlocker blockTo(m_compareTo);
+            m_compareFrom->setDate(b.from);
+            m_compareTo->setDate(b.to);
+        }
+    }
+
+    const bool custom = mode == 3;
+    m_compareFrom->setReadOnly(!custom);
+    m_compareTo->setReadOnly(!custom);
+    m_compareFrom->setEnabled(mode != 0);
+    m_compareTo->setEnabled(mode != 0);
 }
 
 void ReportFilterWidget::emitChanged()
@@ -166,4 +217,23 @@ bool ReportFilterWidget::includeDescendants() const
 Granularity ReportFilterWidget::granularity() const
 {
     return static_cast<Granularity>(m_granularity->currentData().toInt());
+}
+
+bool ReportFilterWidget::hasComparison() const
+{
+    return m_compare->currentIndex() != 0 && comparisonPeriod().isValid();
+}
+
+ReportPeriod ReportFilterWidget::comparisonPeriod() const
+{
+    switch (m_compare->currentIndex()) {
+    case 1:
+        return previousPeriod(period());
+    case 2:
+        return samePeriodLastYear(period());
+    case 3:
+        return {m_compareFrom->date(), m_compareTo->date()};
+    default:
+        return {};
+    }
 }

@@ -27,6 +27,7 @@ qt_add_library(gestion_core STATIC
     include/model/reporttablemodel.h
     include/model/timeseriesmodel.h
     include/model/movementtablemodel.h
+    include/model/comparisontablemodel.h
     include/data/database.h
     include/data/categoryrepository.h
     include/data/transactionrepository.h
@@ -42,6 +43,7 @@ qt_add_library(gestion_core STATIC
     src/model/reporttablemodel.cpp
     src/model/timeseriesmodel.cpp
     src/model/movementtablemodel.cpp
+    src/model/comparisontablemodel.cpp
     src/data/database.cpp
     src/data/categoryrepository.cpp
     src/data/transactionrepository.cpp
