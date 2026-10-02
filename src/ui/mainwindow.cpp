@@ -38,7 +38,7 @@ MainWindow::MainWindow(TransactionService *service, CategoryRepository *category
     ui->tableView->setModel(m_model);
     ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tableView->setSelectionMode(QAbstractItemView::SingleSelection);
-    ui->tableView->setAlternatingRowColors(true);
+    ui->tableView->setAlternatingRowColors(false);
     ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     ui->tableView->verticalHeader()->setVisible(false);
     ui->tableView->horizontalHeader()->setStretchLastSection(true);
@@ -46,7 +46,7 @@ MainWindow::MainWindow(TransactionService *service, CategoryRepository *category
     ui->tableViewDerived->setModel(m_derivedModel);
     ui->tableViewDerived->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tableViewDerived->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    ui->tableViewDerived->setAlternatingRowColors(true);
+    ui->tableViewDerived->setAlternatingRowColors(false);
     ui->tableViewDerived->verticalHeader()->setVisible(false);
     ui->tableViewDerived->horizontalHeader()->setStretchLastSection(true);
 
