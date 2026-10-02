@@ -14,7 +14,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Sql Gui Charts)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Sql Gui Charts CorePrivate)
 
 qt_standard_project_setup()
 
@@ -34,6 +34,12 @@ qt_add_library(gestion_core STATIC
     include/data/derivedtransactionrepository.h
     include/data/transactionservice.h
     include/data/reportrepository.h
+    include/data/importservice.h
+    include/data/importtypes.h
+    include/data/import/importreader.h
+    include/data/import/importutils.h
+    include/data/import/csvimportreader.h
+    include/data/import/xlsximportreader.h
     include/report/reporttypes.h
     src/model/category.cpp
     src/model/transaction.cpp
@@ -50,10 +56,17 @@ qt_add_library(gestion_core STATIC
     src/data/derivedtransactionrepository.cpp
     src/data/transactionservice.cpp
     src/data/reportrepository.cpp
+    src/data/importservice.cpp
+    src/data/import/importutils.cpp
+    src/data/import/csvimportreader.cpp
+    src/data/import/xlsximportreader.cpp
 )
 
 target_include_directories(gestion_core PUBLIC include)
-target_link_libraries(gestion_core PUBLIC Qt6::Core Qt6::Sql Qt6::Gui)
+target_link_libraries(gestion_core
+    PUBLIC Qt6::Core Qt6::Sql Qt6::Gui
+    PRIVATE Qt6::CorePrivate
+)
 
 qt_add_executable(GestionTransaccionesBancarias
     src/main.cpp
