@@ -5,6 +5,7 @@
 #include <QDateEdit>
 #include <QGridLayout>
 #include <QLabel>
+#include <QSignalBlocker>
 
 #include "data/categoryrepository.h"
 
@@ -130,6 +131,8 @@ void ReportFilterWidget::applyPreset()
         }
 
         if (from.isValid() && to.isValid()) {
+            QSignalBlocker blockFrom(m_from);
+            QSignalBlocker blockTo(m_to);
             m_from->setDate(from);
             m_to->setDate(to);
         }

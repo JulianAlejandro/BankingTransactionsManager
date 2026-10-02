@@ -6,6 +6,8 @@
 #include <QDateTime>
 #include <QFile>
 #include <QFileDialog>
+#include <QFont>
+#include <QGraphicsSimpleTextItem>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -81,6 +83,31 @@ QString shortPath(const QString &path)
 {
     const int position = path.lastIndexOf(QStringLiteral(" > "));
     return position < 0 ? path : path.mid(position + 3);
+}
+
+void addNoDataNotice(QChart *chart)
+{
+    QGraphicsSimpleTextItem *item = new QGraphicsSimpleTextItem(
+        ReportWindow::tr("Sin datos en el periodo"));
+    QFont font = item->font();
+    font.setPointSize(font.pointSize() + 2);
+    item->setFont(font);
+    item->setBrush(QColor(0x66, 0x66, 0x66));
+    chart->scene()->addItem(item);
+
+    const auto reposition = [chart, item]() {
+        const QRectF area = chart->plotArea();
+        if (area.isEmpty()) {
+            return;
+        }
+        const QRectF bounds = item->boundingRect();
+        item->setPos(area.center().x() - bounds.width() / 2.0,
+                     area.center().y() - bounds.height() / 2.0);
+    };
+
+    QObject::connect(chart, &QChart::plotAreaChanged, chart,
+                     [reposition](const QRectF &) { reposition(); });
+    reposition();
 }
 
 } // namespace
@@ -165,6 +192,11 @@ void ReportWindow::refresh()
     const ReportPeriod period = m_filters->period();
     QString error;
 
+    if (!period.isValid()) {
+        statusBar()->showMessage(tr("El periodo no es valido: revisa las fechas."));
+        return;
+    }
+
     PeriodTotals totals;
     if (!m_reports->totals(period, &totals, &error)) {
         QMessageBox::warning(this, tr("Informes"), error);
@@ -228,6 +260,7 @@ QChart *ReportWindow::buildEvolutionChart(const QList<TimeBucket> &buckets) cons
     cumulative->setName(tr("Acumulado"));
 
     bool first = true;
+    bool hasData = false;
     double minValue = 0.0;
     double maxValue = 0.0;
     const auto track = [&](double value) {
@@ -251,6 +284,9 @@ QChart *ReportWindow::buildEvolutionChart(const QList<TimeBucket> &buckets) cons
         expense->append(x, expenseValue);
         net->append(x, netValue);
         cumulative->append(x, cumulativeValue);
+        if (bucket.incomeCents != 0 || bucket.expenseCents != 0) {
+            hasData = true;
+        }
         track(incomeValue);
         track(expenseValue);
         track(netValue);
@@ -305,8 +341,14 @@ QChart *ReportWindow::buildEvolutionChart(const QList<TimeBucket> &buckets) cons
 
     const QList<QLineSeries *> series = {income, expense, net, cumulative};
     for (QLineSeries *line : series) {
+        line->setPointsVisible(true);
+        line->setMarkerSize(7.0);
         line->attachAxis(axisX);
         line->attachAxis(axisY);
+    }
+
+    if (!hasData) {
+        addNoDataNotice(chart);
     }
 
     return chart;
@@ -350,6 +392,10 @@ QChart *ReportWindow::buildCategoryChart(const QList<CategoryTotal> &totals,
     axisY->setRange(0.0, maxValue > 0.0 ? maxValue * 1.1 : 1.0);
     chart->addAxis(axisY, Qt::AlignLeft);
     series->attachAxis(axisY);
+
+    if (maxValue <= 0.0) {
+        addNoDataNotice(chart);
+    }
 
     return chart;
 }
