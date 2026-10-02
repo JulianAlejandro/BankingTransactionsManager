@@ -19,6 +19,7 @@ anadir una caracteristica o cambiar una decision de diseno, se refleja aqui.
 - **Framework**: Qt 6 (Qt Widgets)
 - **Modulo de datos**: Qt Sql (SQLite)
 - **Graficas**: Qt Charts (`Qt6::Charts`)
+- **Importacion**: extractos XLSX/CSV (XLSX via `QZipReader` de `Qt6::CorePrivate`)
 - **Build system**: CMake + Ninja
 - **Kit**: Desktop Qt 6.11.1 MinGW 64-bit (MinGW 13.1.0)
 - **Control de versiones**: Git (rama `main`)
@@ -69,6 +70,9 @@ include/  y  src/
     derivedtablemodel.*      Modelo de la tabla del desglose
     reporttablemodel.*       Modelo del desglose de informes
     timeseriesmodel.*        Modelo de la evolucion temporal
+    movementtablemodel.*     Modelo de la lista de movimientos (drill-down)
+    comparisontablemodel.*   Modelo de la comparativa A vs B
+    importtablemodel.*       Modelo de la previsualizacion de importacion
   report/              Tipos de los informes (DTOs de solo lectura)
     reporttypes.h        ReportPeriod, Granularity, PeriodTotals, CategoryTotal, TimeBucket
   data/                Persistencia y logica de agregado
@@ -78,12 +82,21 @@ include/  y  src/
     derivedtransactionrepository.* CRUD de las derivadas
     transactionservice.*  Coordina "transaccion + derivadas" de forma atomica
     reportrepository.*   Consultas agregadas de solo lectura para informes
+    importtypes.h        ImportedMovement, ImportResult
+    importservice.*      Lee extractos, marca duplicados y crea transacciones
+    import/              Lectores de extractos
+      importreader.h       Interfaz de lector
+      importutils.*        Parseo de fecha/importe y combinacion de concepto
+      csvimportreader.*    Lector CSV
+      xlsximportreader.*   Lector XLSX (perfil Informe BBVA)
   ui/                  Interfaz
     mainwindow.*              Ventana principal (tabla + toolbar)
     transactioneditordialog.* Editor unificado (movimiento + desglose)
     derivedrowdialog.*        Alta/edicion de una derivada
     reportwindow.*            Ventana de informes (KPIs, desglose, graficas)
     reportfilterwidget.*      Filtros de informes (periodo, categoria, granularidad)
+    movementlistdialog.*      Lista de movimientos de una fila (drill-down)
+    importdialog.*            Dialogo de importacion de extractos
 tests/                 Tests con Qt Test
 tools/                 Herramientas de desarrollo
   seed_demo.cpp        Siembra 13 transacciones de ejemplo (solo si la BD esta vacia)
@@ -174,6 +187,21 @@ tools/                 Herramientas de desarrollo
 - **Graficas** (Qt Charts): lineas ingresos/gastos/neto, saldo acumulado y barras por categoria.
 - **Exportacion CSV**: la tabla de informe mostrada; formato segun Convenciones.
 - Toda lectura agregada vive en `data/reportrepository.*`; la UI no escribe SQL.
+### Importacion de movimientos
+
+- Fuentes: extractos **XLSX** (perfil "Informe BBVA": hoja unica, cabecera detectada por
+  contenido con columnas Fecha/Concepto/Movimiento/Importe) y **CSV** (cabecera con
+  Fecha/Importe; separador `;`, `,` o tabulador).
+- El XLSX se lee con `QZipReader` (`Qt6::CorePrivate`, API privada de Qt) y `QXmlStreamReader`.
+- `concepto` importado = columna Concepto; si hay Movimiento y aporta, `Concepto - Movimiento`.
+- Los importes se convierten a **centimos con signo** tal cual vienen en el fichero.
+- Al importar, cada movimiento se convierte en una **transaccion con una derivada por defecto**
+  en la categoria elegida en el dialogo (obligatorio: minimo una derivada).
+- **Duplicados**: antes de importar se marcan los movimientos ya existentes con la misma
+  `fecha + concepto + importe`; se previsualizan y se omiten por defecto (desmarcables).
+- **UI**: accion "Importar" en la toolbar principal; dialogo con previsualizacion, estado por
+  fila (Nuevo/Duplicado/Error), checkbox por fila y resumen final.
+- La logica vive en `data/importservice.*` y `data/import/*`; la UI no parsea ficheros.
 
 ### Esquema SQLite (version 2)
 
@@ -219,6 +247,7 @@ Pendiente (fuera del MVP actual):
 - Gestor de categorias en la UI (crear, renombrar, mover, borrar).
 - (En curso) Informes: totales por nodo y por rama, KPIs, evolucion temporal y graficas con
   Qt Charts. Ver la seccion "Informes".
+- Importacion de extractos XLSX/CSV. Ver la seccion "Importacion de movimientos".
 - Filtros y busqueda en la tabla (por fecha, categoria, texto).
 - Internacionalizacion (`.ts`) e icono de aplicacion.
 - Empaquetado/deploy con `windeployqt`.
