@@ -81,6 +81,8 @@ qt_add_executable(GestionTransaccionesBancarias
     src/ui/derivedrowdialog.cpp
     src/ui/derivedrowdialog.h
     src/ui/derivedrowdialog.ui
+    src/ui/categoryeditordialog.cpp
+    src/ui/categoryeditordialog.h
     src/ui/reportfilterwidget.cpp
     src/ui/reportfilterwidget.h
     src/ui/reportwindow.cpp

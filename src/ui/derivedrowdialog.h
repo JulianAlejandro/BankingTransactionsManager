@@ -12,12 +12,14 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class DerivedRowDialog; }
 QT_END_NAMESPACE
 
+class CategoryRepository;
+
 class DerivedRowDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit DerivedRowDialog(const QList<Category> &categories, QWidget *parent = nullptr);
+    explicit DerivedRowDialog(CategoryRepository *repository, QWidget *parent = nullptr);
     ~DerivedRowDialog() override;
 
     void setRow(const DerivedTransaction &row);
@@ -28,12 +30,15 @@ public:
 private slots:
     void loadFromParent();
     void updateSignHint();
+    void createCategory();
     void validateAndAccept();
 
 private:
-    void populateCategories(const QList<Category> &categories);
+    void reloadCategories(int selectId = -1);
+    Category currentCategory() const;
 
     Ui::DerivedRowDialog *ui;
+    CategoryRepository *m_repository;
     DerivedTransaction m_row;
     QHash<int, CategoryType> m_typeById;
 

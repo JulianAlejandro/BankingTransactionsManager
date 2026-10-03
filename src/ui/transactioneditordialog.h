@@ -13,12 +13,14 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class TransactionEditorDialog; }
 QT_END_NAMESPACE
 
+class CategoryRepository;
+
 class TransactionEditorDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit TransactionEditorDialog(const QList<Category> &categories,
+    explicit TransactionEditorDialog(CategoryRepository *categoryRepository,
                                      QWidget *parent = nullptr);
     ~TransactionEditorDialog() override;
 
@@ -38,9 +40,11 @@ private:
     qint64 amountCents() const;
     int selectedRow() const;
     bool validateState(QString *error) const;
+    void refreshCategories();
 
     Ui::TransactionEditorDialog *ui;
     DerivedTableModel *m_model;
+    CategoryRepository *m_categoryRepository;
     QList<Category> m_categories;
     Transaction m_transaction;
 };

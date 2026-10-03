@@ -224,7 +224,7 @@ void MainWindow::createTransaction()
         return;
     }
 
-    TransactionEditorDialog dialog(categories, this);
+    TransactionEditorDialog dialog(m_categoryRepository, this);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
@@ -256,7 +256,7 @@ void MainWindow::editSelectedTransaction()
     }
 
     const QList<Category> categories = m_categoryRepository->withPaths(&error);
-    TransactionEditorDialog dialog(categories, this);
+    TransactionEditorDialog dialog(m_categoryRepository, this);
     dialog.setTransaction(transaction, derived);
     if (dialog.exec() != QDialog::Accepted) {
         return;

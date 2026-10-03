@@ -8,6 +8,13 @@
 
 #include "ui/derivedrowdialog.h"
 
+#include <QItemSelectionModel>
+#include <QLocale>
+#include <QMessageBox>
+#include <QPushButton>
+
+#include "data/categoryrepository.h"
+
 namespace {
 
 QLocale esLocale()
@@ -23,11 +30,12 @@ QString formatCents(qint64 cents)
 
 } // namespace
 
-TransactionEditorDialog::TransactionEditorDialog(const QList<Category> &categories, QWidget *parent)
+TransactionEditorDialog::TransactionEditorDialog(CategoryRepository *categoryRepository,
+                                                 QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::TransactionEditorDialog)
     , m_model(new DerivedTableModel(this))
-    , m_categories(categories)
+    , m_categoryRepository(categoryRepository)
 {
     ui->setupUi(this);
 
@@ -38,7 +46,7 @@ TransactionEditorDialog::TransactionEditorDialog(const QList<Category> &categori
     ui->tableViewDerived->horizontalHeader()->setStretchLastSection(true);
     ui->tableViewDerived->verticalHeader()->setVisible(false);
 
-    m_model->setCategories(categories);
+    refreshCategories();
     ui->dateEdit->setDate(QDate::currentDate());
 
     connect(ui->buttonBox, &QDialogButtonBox::accepted,
@@ -86,6 +94,16 @@ qint64 TransactionEditorDialog::amountCents() const
     return qRound64(ui->doubleSpinBoxAmount->value() * 100.0);
 }
 
+void TransactionEditorDialog::refreshCategories()
+{
+    if (m_categoryRepository == nullptr) {
+        return;
+    }
+    QString error;
+    m_categories = m_categoryRepository->withPaths(&error);
+    m_model->setCategories(m_categories);
+}
+
 int TransactionEditorDialog::selectedRow() const
 {
     const QModelIndexList selection = ui->tableViewDerived->selectionModel()->selectedRows();
@@ -114,17 +132,19 @@ void TransactionEditorDialog::addDerived()
     row.concept = ui->lineEditConcept->text().trimmed();
     row.notes = ui->plainTextEditNotes->toPlainText().trimmed();
 
-    DerivedRowDialog dialog(m_categories, this);
+    DerivedRowDialog dialog(m_categoryRepository, this);
     dialog.setRow(row);
     dialog.setParentInfo(ui->lineEditConcept->text().trimmed(), amountCents(),
                          ui->plainTextEditNotes->toPlainText().trimmed());
     const qint64 remaining = amountCents() - m_model->totalCents();
     dialog.setSuggestedMagnitudeCents(qAbs(remaining));
     if (dialog.exec() != QDialog::Accepted) {
+        refreshCategories();
         return;
     }
 
     m_model->appendRow(dialog.row());
+    refreshCategories();
     refreshState();
 }
 
@@ -138,17 +158,19 @@ void TransactionEditorDialog::editDerived()
     }
 
     const DerivedTransaction current = m_model->derivedAt(index);
-    DerivedRowDialog dialog(m_categories, this);
+    DerivedRowDialog dialog(m_categoryRepository, this);
     dialog.setRow(current);
     dialog.setParentInfo(ui->lineEditConcept->text().trimmed(), amountCents(),
                          ui->plainTextEditNotes->toPlainText().trimmed());
     const qint64 remaining = amountCents() - (m_model->totalCents() - current.amountCents);
     dialog.setSuggestedMagnitudeCents(qAbs(remaining));
     if (dialog.exec() != QDialog::Accepted) {
+        refreshCategories();
         return;
     }
 
     m_model->replaceRow(index, dialog.row());
+    refreshCategories();
     refreshState();
 }
 

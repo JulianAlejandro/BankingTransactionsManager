@@ -2,16 +2,22 @@
 #include "ui_derivedrowdialog.h"
 
 #include <QMessageBox>
+#include <QPushButton>
 
-DerivedRowDialog::DerivedRowDialog(const QList<Category> &categories, QWidget *parent)
+#include "data/categoryrepository.h"
+#include "ui/categoryeditordialog.h"
+
+DerivedRowDialog::DerivedRowDialog(CategoryRepository *repository, QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::DerivedRowDialog)
+    , m_repository(repository)
 {
     ui->setupUi(this);
-    populateCategories(categories);
+    reloadCategories();
 
     connect(ui->comboCategory, qOverload<int>(&QComboBox::currentIndexChanged),
             this, &DerivedRowDialog::updateSignHint);
+    connect(ui->btnNewCategory, &QPushButton::clicked, this, &DerivedRowDialog::createCategory);
     connect(ui->btnLoadParent, &QPushButton::clicked, this, &DerivedRowDialog::loadFromParent);
     connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &DerivedRowDialog::validateAndAccept);
     connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -24,14 +30,76 @@ DerivedRowDialog::~DerivedRowDialog()
     delete ui;
 }
 
-void DerivedRowDialog::populateCategories(const QList<Category> &categories)
+void DerivedRowDialog::reloadCategories(int selectId)
 {
     ui->comboCategory->clear();
+    m_typeById.clear();
+
+    if (m_repository == nullptr) {
+        return;
+    }
+
+    QString error;
+    const QList<Category> categories = m_repository->withPaths(&error);
     for (const Category &category : categories) {
         const QString indent(category.depth * 4, QLatin1Char(' '));
         ui->comboCategory->addItem(indent + category.name, category.id);
         m_typeById.insert(category.id, category.type);
     }
+
+    if (selectId >= 0) {
+        const int index = ui->comboCategory->findData(selectId);
+        if (index >= 0) {
+            ui->comboCategory->setCurrentIndex(index);
+        }
+    }
+    updateSignHint();
+}
+
+Category DerivedRowDialog::currentCategory() const
+{
+    const int id = ui->comboCategory->currentData().toInt();
+    Category category;
+    category.id = id;
+    category.type = m_typeById.value(id, CategoryType::Expense);
+    category.name = ui->comboCategory->currentText().trimmed();
+    return category;
+}
+
+void DerivedRowDialog::createCategory()
+{
+    if (m_repository == nullptr) {
+        return;
+    }
+
+    const int parentId = ui->comboCategory->currentData().toInt();
+    if (parentId < 0) {
+        QMessageBox::information(this, tr("Nueva categoria"),
+                                 tr("Selecciona antes una categoria padre."));
+        return;
+    }
+
+    bool parentOk = false;
+    const Category parentCategory = m_repository->findById(parentId, &parentOk);
+    if (!parentOk) {
+        QMessageBox::critical(this, tr("Nueva categoria"),
+                              tr("La categoria padre no existe."));
+        return;
+    }
+
+    QString error;
+    const QString path = m_repository->pathOf(parentId, &parentOk);
+    Category parent = parentCategory;
+    if (parentOk) {
+        parent.path = path;
+    }
+
+    CategoryEditorDialog dialog(m_repository, parent, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    reloadCategories(dialog.createdCategory().id);
 }
 
 void DerivedRowDialog::updateSignHint()
